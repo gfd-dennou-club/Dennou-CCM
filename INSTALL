@@ -1,0 +1,9 @@
+Build
+-----
+- Set DCCM_SYS environmental variable (see the sysdef directory)
+ % DCCM_SYS=Linux64-intel-impi (example)
+
+- make
+ After modify some variables in Mkinculde to specify the locations of each model component,
+ execute the following command in the top directory. 
+ % make

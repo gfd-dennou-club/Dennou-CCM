@@ -1,0 +1,153 @@
+# -*- makefile -*- for Dennou-CCM
+#-------------------------------------------------------------
+# Copyright (c) 2016-2016 Kawai Yuta. All rights reserved.
+#-------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+
+# DCCM_SYS        = Linux64-intel-impi
+
+ GTOOL5MPIDIR    = $(HOME)/lib/gtool5-mpi
+ GTOOL5MPINAME   = gtool5-mpi
+ GTOOL5DIR       = $(HOME)/lib/gtool5-serial
+ GTOOL5NAME      = gtool5-serial
+
+ SPMLDIR         = $(HOME)/lib/spml
+ SPMLNAME        = spml-omp
+
+ ISPACKDIR       = $(HOME)/lib/ispack
+ ISPACKNAME      = isp-avx
+
+ NETCDFDIR       = $(HOME)/lib/netcdf
+ NETCDFNEME      = netcdf
+ NETCDFFNEME     = netcdff
+
+ JCUPDIR         = $(HOME)/workspace/jcup
+ JCUPINCDIR      = $(JCUPDIR)/c.black
+
+ ATM_MODEL_DIR          = $(HOME)/workspace/dcpam
+ ATM_MODEL_INCDIR       = $(ATM_MODEL_DIR)/include
+ ATM_MODEL_LIBDIR       = $(ATM_MODEL_DIR)/lib
+ ATM_MODEL_LIBNAME      = dcpam5
+
+ OCN_MODEL_DIR          = $(HOME)/workspace/Dennou-OGCM/model/dogcm
+ OCN_MODEL_INCDIR       = $(OCN_MODEL_DIR)/include
+ OCN_MODEL_LIBDIR       = $(OCN_MODEL_DIR)
+ OCN_MODEL_LIBNAME      = DOGCM
+
+ COMPO_PE_SUFFIX = 
+# COMPO_PE_SUFFIX = _T42
+# COMPO_PE_SUFFIX = _OMixLyrExp
+
+#---------------------------------------------------------------------------
+
+###
+# set compilers and compile options
+### 
+
+#- COMMON ---------
+COMMON_INCLUDEFLAG = -I$(INCDIR) -I$(JCUPINCDIR)              \
+	-I$(SPMLDIR)/include -I$(GTOOL5DIR)/include           \
+	-I$(NETCDFDIR)/include
+
+COMMON_LDFLAG      = \
+	-L$(SPMLDIR)/lib  -l$(SPMLNAME)                       \
+	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME)                   \
+	-L$(GTOOL5DIR)/lib  -l$(GTOOL5NAME)                   \
+	-L$(NETCDFDIR)/lib -l$(NETCDFFNEME) -l$(NETCDFNEME)
+
+#- ATM -------------
+ATM_INCLUDEFLAG = \
+	-I$(INCDIR) -I$(JCUPINCDIR)                    \
+	-I$(ATM_MODEL_INCDIR)                          \
+	-I$(SPMLDIR)/include -I$(GTOOL5MPIDIR)/include \
+	-I$(NETCDFDIR)/include
+
+ATM_LDFLAG      = \
+	-L$(LIBDIR) -lcommon                                  \
+	-L$(SPMLDIR)/lib  -l$(SPMLNAME)                       \
+	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME)                   \
+	-L$(GTOOL5MPIDIR)/lib  -l$(GTOOL5MPINAME)             \
+	-L$(NETCDFDIR)/lib -l$(NETCDFFNEME) -l$(NETCDFNEME)
+
+#- OCN -------------
+OCN_INCLUDEFLAG = \
+	-I$(INCDIR) -I$(JCUPINCDIR)                 \
+	-I$(OCN_MODEL_INCDIR)                       \
+	-I$(SPMLDIR)/include -I$(GTOOL5DIR)/include -I$(NETCDFDIR)/include
+
+OCN_LDFLAG      = \
+	-L$(LIBDIR) -lcommon                                  \
+	-L$(SPMLDIR)/lib  -l$(SPMLNAME)                       \
+	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME)                   \
+	-L$(GTOOL5DIR)/lib  -l$(GTOOL5NAME)                   \
+	-L$(NETCDFDIR)/lib -l$(NETCDFFNEME) -l$(NETCDFNEME)
+
+#- TOOL -------------
+TOOL_INCLUDEFLAG  = \
+	-I$(INCDIR) -I$(JCUPINCDIR)                           \
+	-I$(SPMLDIR)/include -I$(GTOOL5DIR)/include           \
+	-I$(NETCDFDIR)/include
+
+TOOL_LDFLAG      = \
+	-L$(LIBDIR) -lcommon                                  \
+	-L$(SPMLDIR)/lib  -l$(SPMLNAME)                       \
+	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME)                   \
+	-L$(GTOOL5DIR)/lib  -l$(GTOOL5NAME)                   \
+	-L$(NETCDFDIR)/lib -l$(NETCDFFNEME) -l$(NETCDFNEME)
+
+###
+# make clean cleanup these.
+##
+TRASH	= *.o *~ *.mod *.lst
+
+########################################################################
+# You may not edit below.
+########################################################################
+
+ATM_PE_NAME    = atm_driver$(COMPO_PE_SUFFIX)
+OCN_PE_NAME    = ocn_driver$(COMPO_PE_SUFFIX)
+
+BINDIR   	= $(TOPDIR)/bin
+LIBDIR   	= $(TOPDIR)/lib
+INCDIR   	= $(TOPDIR)/include
+
+DRIVERDIR	= $(TOPDIR)/driver
+
+COMMONDIR	= $(TOPDIR)/common
+COMMONLIB	= libcommon.a
+JINTPOBJ 	= interpolate_data.o
+
+ATMDIR  	= $(TOPDIR)/atm
+ATMLIB  	= libatm.a
+
+#DYNDIR  	= $(ATMDIR)/dynamics
+#DYNLIB		= libdyn.a
+
+#LANDDIR 	= $(TOPDIR)/land
+#LANDLIB		= libland.a
+
+OCNDIR  	= $(TOPDIR)/ocn
+OCNLIB  	= libocn.a
+
+#ICEDIR  	= $(TOPDIR)/ice
+#ICELIB  	= libice.a 
+
+#CHMDIR   	= $(TOPDIR)/chm
+#CHMLIB		= libchm.a
+
+TOOLDIR  	= $(TOPDIR)/tool
+TOOLLIB  	= libDCCMTool.a
+
+
+###
+# Following GNUmake's implicit rule.
+###
+.SUFFIXES: .f90 .o
+
+COMPILE.f90	= $(FC) $(FFLAGS) $(COMPOINC)     $(TARGET_ARCH) -c
+LINK.f90   	= $(FC) $(FFLAGS) $(COMPOLDFLAGS) $(TARGET_ARCH)
+
+%.o : %.f90
+	$(COMPILE.f90) $(OUTPUT_OPTION) $<
+
