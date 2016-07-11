@@ -5,7 +5,7 @@
 ################################################################################
 
 TOPDIR      = $(abspath ../)
-BUILD_DIR   = ./.libs
+BUILD_DIR   = .
 SYSDEP_DIR  = $(TOPDIR)/sysdep
 
 include $(SYSDEP_DIR)/Makedef.$(DCCM_SYS)
@@ -27,22 +27,26 @@ OBJS    = \
 MODS    =  \
 	optionparser_mod.mod   \
 	mod_common_params.mod  \
-	mod_common_compdef.mod  \
-	component_field.mod  field_common.mod  field_def.mod \
-	grid_mapping_util.mod                                \
+	mod_common_compdef.mod \
+	component_field.mod    \
+	field_def.mod          \
+	grid_mapping_util.mod  \
 	interpolation_data_latlon_mod.mod
 
 #--------------------------------------------
 
 all: lib
 
-lib: $(LIBDIR) $(INCDIR) $(LIBDIR)/$(COMMONLIB) $(LIBDIR)/$(JINTPOBJ)
+lib:    $(LIBDIR) $(INCDIR) $(BUILD_DIR) \
+	$(BUILD_DIR)/$(COMMONLIB)        \
+	$(LIB_DIR)/$(JINTPOBJ)
 
-$(LIBDIR)/$(COMMONLIB): $(OBJS) 
+$(BUILD_DIR)/$(COMMONLIB): $(OBJS)
 	$(AR) $(ARFLAGS) $@ $(OBJS)
+	$(INSTALL) $@ $(LIBDIR)
 	$(INSTALL) $(MODS) $(INCDIR)
 
-$(LIBDIR)/$(JINTPOBJ): $(JINTPOBJ)
+$(LIB_DIR)/$(JINTPOBJ): $(JINTPOBJ) 
 	$(INSTALL) $(JINTPOBJ) $(LIBDIR)
 
 $(LIBDIR) $(INCDIR):

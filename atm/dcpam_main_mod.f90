@@ -1005,13 +1005,13 @@ contains
             CpDry*xyr_Exner(:,:,0)*xy_SurfTempTransCoef &
           * (xyz_DTempDtVDiff(:,:,1)/xyz_Exner(:,:,1) - xy_DSurfTempDt/xyr_Exner(:,:,0)) &
           * 2d0*delta_t
-!!$    xy_LatentAtm(:,:) = LatentHeat*( &
-!!$         & xyrf_QMixFlux(:,:,0,IndexH2OVap)  &
-!!$         &   - xy_SurfHumidCoef*xy_SurfQVapTransCoef*( &
-!!$         &     xyzf_DQMixDt(:,:,1,IndexH2OVap) - xy_SurfDQVapSatDTemp*xy_DSurfTempDt &
-!!$         &   )* 2d0*delta_t &
-!!$         & )
-    xy_LatentAtm(:,:) = xy_SurfLatentHeatFluxA
+    xy_LatentAtm(:,:) = LatentHeat*( &
+         & xyrf_QMixFlux(:,:,0,IndexH2OVap)  &
+         &   - xy_SurfHumidCoef*xy_SurfQVapTransCoef*( &
+         &     xyzf_DQMixDt(:,:,1,IndexH2OVap) - xy_SurfDQVapSatDTemp*xy_DSurfTempDt &
+         &   )* 2d0*delta_t &
+         & )
+!!$    xy_LatentAtm(:,:) = xy_SurfLatentHeatFluxA
     
     xy_LDWRFlxAtm(:,:) = xyr_RadLDwFlux(:,:,0) + 2d0*delta_t*( &
          &    xy_DSurfTempDt * xyra_DelRadLDwFlux(:,:,0,0)            &

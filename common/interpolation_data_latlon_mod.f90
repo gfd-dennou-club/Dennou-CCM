@@ -10,10 +10,12 @@ module interpolation_data_latlon_mod
 
   ! モジュール引用; Use statements
   !
-  use dc_types
 
-  use field_common, only: ATM, OCN
+  !* gtool5
+  use dc_types, only: &
+       & DP, TOKEN, STRING
 
+  !* jcup
   use jcup_interface, only: &
        & OPERATION_COEF, SEND_COEF, RECV_COEF, &
        & jcup_send_coef, jcup_recv_coef, &
@@ -21,6 +23,13 @@ module interpolation_data_latlon_mod
        & jcup_get_mpi_parameter, jcup_get_component_name, &
        & jcup_get_comp_num_from_name, &
        & jcup_error
+
+  !* Dennou-OGCM
+  use mod_common_params, only: &
+       & ATM => COMPNAME_ATM,  &
+       & OCN => COMPNAME_OCN
+  
+
   
   ! 宣言文; Declareration statements
   !

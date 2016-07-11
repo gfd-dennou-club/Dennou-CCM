@@ -90,8 +90,8 @@ contains
     ! Local variables
     !    
     NAMELIST /PARAM_DCCM_GRID/   &
-         & IMA, JMA, KMA,  &
-         & IMO, JMO, KMO
+         & IMA, JMA, KMA, NMA, &
+         & IMO, JMO, KMO, NMO
 
     NAMELIST /PARAM_GMAPGEN/     &
          & gmapfile_AO_NAME,     &
@@ -108,13 +108,13 @@ contains
     call OptionParser_GetInfo( configNmlName, DEFAULT_GMAPGEN_CONFIGNML)
     call OptionParser_Final()
 
-    IMA = 32
-    JMA = 64
+    IMA = 64
+    JMA = 32
     KMA = 26
     NMA = 21
 
-    IMO = 32
-    JMO = 64
+    IMO = 64
+    JMO = 32
     KMO = 26
     NMO = 21
     

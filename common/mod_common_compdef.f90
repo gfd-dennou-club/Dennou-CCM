@@ -22,8 +22,6 @@ module mod_common_compdef
   use mod_common_params, only: &
        & NUM_DCCM_COMP,                    &
        & JCUP_LOG_LEVEL, JCUP_LOG_STDERROR
-
-  use field_def
   
   use jcup_data, only: &
        & varp_type
@@ -31,8 +29,11 @@ module mod_common_compdef
   use jcup_interface, only: &
        & jcup_initialize,        &
        & jcup_set_new_comp,      &
+       & jcup_get_model_id,      &
        & jcup_get_mpi_parameter, &
        & jcup_init_time
+
+!!$  use field_def
   
   
   ! 宣言文; Declareration statements
@@ -42,8 +43,9 @@ module mod_common_compdef
 
   !
   type, public :: ComponentDef
-     character(TOKEN) :: NAME
-     integer          :: id
+
+     character(TOKEN) :: NAME = ''
+     integer          :: id   = -1
      
      character(TOKEN) :: MODELNAME
      
@@ -72,17 +74,20 @@ module mod_common_compdef
   type(ComponentDef), public :: CompDef_ocn
   type(ComponentDef), public :: CompDef_sice
   type(ComponentDef), public :: CompDef_land
-
-  character(TOKEN), public :: GMAPFILENAME_AO
-  character(TOKEN), public :: GMAPFILENAME_OA
+  type(ComponentDef), public, pointer :: CompDef_own => null()
+  
+  character(STRING), public :: GMAPFILENAME_AO
+  character(STRING), public :: GMAPFILENAME_OA
     
   integer, public :: AO_COUPLING_CYCLE_SEC
-  integer, public :: OA_COUPLING_CYCLE_SEC
+!  integer, public :: OA_COUPLING_CYCLE_SEC
   integer, public :: SO_COUPLING_CYCLE_SEC
   
   public :: ComponentDef_Init
   public :: ComponentDef_Final
-  
+  public :: ComponentDef_Share
+
+  public :: common_read_config
   
   !----------------------------------------------------------
   
@@ -92,10 +97,13 @@ contains
 
   subroutine ComponentDef_Init( my_comp, name, modelname )
 
-    type(ComponentDef), intent(inout) :: my_comp
+    
+    type(ComponentDef), target, intent(inout) :: my_comp
     character(*), intent(in) :: name
     character(*), intent(in) :: modelname
 
+    CompDef_own => my_comp
+    
     my_comp%NAME = name
     my_comp%MODELNAME = modelname
 
@@ -131,10 +139,77 @@ contains
     
   end subroutine ComponentDef_Init
 
+  !-------------------------------------------------------------------
+  
   subroutine ComponentDef_Final()
     
   end subroutine ComponentDef_Final
 
+  !-------------------------------------------------------------------
+  
+  subroutine ComponentDef_Share()
+
+    use mod_common_params
+    
+!!$    write(*,*) "Share conmponent defininitions.."
+!!$    write(*,*) "CompDef_Atm:", CompDef_atm%name
+!!$    write(*,*) "CompDef_Ocn:", CompDef_ocn%name
+    
+    call broadcast_compdef( CompDef_atm, COMPNAME_ATM )
+    call broadcast_compdef( CompDef_ocn, COMPNAME_OCN )
+!!$    call broadcast_compdef( sice_comp )
+
+!!$    write(*,*) "After CompDef_Atm:", CompDef_atm%name
+!!$    write(*,*) "After CompDef_Ocn:", CompDef_ocn%name
+
+  contains
+    subroutine broadcast_compdef( comp, comp_name )
+
+      use jcup_comp, only: &
+           & get_comp_id_from_name
+      
+      use jcup_mpi_lib, only: &
+           & jml_GetLeaderRank, &
+           & jml_BcastGlobal
+
+
+      type(ComponentDef), intent(inout) :: comp
+      character(*), intent(in) :: comp_name
+
+      integer :: src_id
+      integer :: src_rank
+      integer :: comp_id(1)
+      integer :: GRID_NUM(3)
+      integer :: ITIME(6)
+      
+      src_id = get_comp_id_from_name( comp_name )
+      src_rank = jml_GetLeaderRank( src_id )
+
+      call jml_BcastGlobal( comp%name, src_rank )
+      call jml_BcastGlobal( comp%MODELNAME, src_rank )
+
+      comp_id(:) = comp%id
+      call jml_BcastGlobal( comp_id, 1, 1, src_rank )
+      comp%id = comp_id(1)
+      
+      GRID_NUM(1:3) = (/ comp%GNX, comp%GNY, comp%GNZ /)
+      call jml_BcastGlobal( GRID_NUM, 1, 3, src_rank )
+      comp%GNX = GRID_NUM(1)
+      comp%GNY = GRID_NUM(2)
+      comp%GNZ = GRID_NUM(3)
+
+      GRID_NUM(1:2) = (/ comp%LNX, comp%LNY /)
+      call jml_BcastGlobal( GRID_NUM, 1, 2, src_rank )
+      comp%LNX = GRID_NUM(1)
+      comp%LNY = GRID_NUM(2)
+
+      call jml_BcastGlobal( comp%InitTimeInfo, 1, 6, src_rank)
+      
+
+    end subroutine broadcast_compdef
+    
+  end subroutine ComponentDef_Share
+  
   !----------------------------------------------------------
 
   subroutine common_read_config( configNmlName )

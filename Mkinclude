@@ -16,14 +16,18 @@
  SPMLNAME        = spml-omp
 
  ISPACKDIR       = $(HOME)/lib/ispack
- ISPACKNAME      = isp-avx
+ # isp-{avx,sse64,fort}
+ ISPACKNAME4ATM  = isp-fort
+ ISPACKNAME4OCN  = isp-sse64
 
  NETCDFDIR       = $(HOME)/lib/netcdf
  NETCDFNEME      = netcdf
  NETCDFFNEME     = netcdff
 
- JCUPDIR         = $(HOME)/workspace/jcup
- JCUPINCDIR      = $(JCUPDIR)/c.black
+ JCUPDIR         = $(HOME)/workspace/jcup/c.black
+ JCUPINCDIR      = $(JCUPDIR)
+ JCUPLIBDIR      = $(JCUPDIR)
+ JCUPLIBNAME     = jcup
 
  ATM_MODEL_DIR          = $(HOME)/workspace/dcpam
  ATM_MODEL_INCDIR       = $(ATM_MODEL_DIR)/include
@@ -32,8 +36,13 @@
 
  OCN_MODEL_DIR          = $(HOME)/workspace/Dennou-OGCM/model/dogcm
  OCN_MODEL_INCDIR       = $(OCN_MODEL_DIR)/include
- OCN_MODEL_LIBDIR       = $(OCN_MODEL_DIR)
+ OCN_MODEL_LIBDIR       = $(HOME)/lib/Dennou-OGCM/lib
  OCN_MODEL_LIBNAME      = DOGCM
+
+ SICE_MODEL_DIR          = $(HOME)/workspace/Dennou-OGCM/model/dogcm
+ SICE_MODEL_INCDIR       = $(OCN_MODEL_DIR)/include
+ SICE_MODEL_LIBDIR       = $(HOME)/lib/Dennou-OGCM/lib
+ SICE_MODEL_LIBNAME      = DSIce
 
  COMPO_PE_SUFFIX = 
 # COMPO_PE_SUFFIX = _T42
@@ -51,6 +60,7 @@ COMMON_INCLUDEFLAG = -I$(INCDIR) -I$(JCUPINCDIR)              \
 	-I$(NETCDFDIR)/include
 
 COMMON_LDFLAG      = \
+	$(JCUPLIB)		                              \
 	-L$(SPMLDIR)/lib  -l$(SPMLNAME)                       \
 	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME)                   \
 	-L$(GTOOL5DIR)/lib  -l$(GTOOL5NAME)                   \
@@ -64,9 +74,12 @@ ATM_INCLUDEFLAG = \
 	-I$(NETCDFDIR)/include
 
 ATM_LDFLAG      = \
+	-L$(ATM_MODEL_LIBDIR) -l$(ATM_MODEL_LIBNAME)          \
+	$(LIBDIR)/$(JINTPOBJ)                                 \
 	-L$(LIBDIR) -lcommon                                  \
+	-L$(JCUPLIBDIR) -l$(JCUPLIBNAME)		      \
 	-L$(SPMLDIR)/lib  -l$(SPMLNAME)                       \
-	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME)                   \
+	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME4ATM)               \
 	-L$(GTOOL5MPIDIR)/lib  -l$(GTOOL5MPINAME)             \
 	-L$(NETCDFDIR)/lib -l$(NETCDFFNEME) -l$(NETCDFNEME)
 
@@ -74,14 +87,23 @@ ATM_LDFLAG      = \
 OCN_INCLUDEFLAG = \
 	-I$(INCDIR) -I$(JCUPINCDIR)                 \
 	-I$(OCN_MODEL_INCDIR)                       \
+	-I$(SICE_MODEL_INCDIR)                      \
 	-I$(SPMLDIR)/include -I$(GTOOL5DIR)/include -I$(NETCDFDIR)/include
 
 OCN_LDFLAG      = \
+	-L$(OCN_MODEL_LIBDIR) -l$(OCN_MODEL_LIBNAME)          \
+	-L$(SICE_MODEL_LIBDIR) -l$(SICE_MODEL_LIBNAME)        \
+	$(LIBDIR)/$(JINTPOBJ)                                 \
 	-L$(LIBDIR) -lcommon                                  \
+	-L$(JCUPLIBDIR) -l$(JCUPLIBNAME)		      \
 	-L$(SPMLDIR)/lib  -l$(SPMLNAME)                       \
-	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME)                   \
+	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME4OCN)               \
 	-L$(GTOOL5DIR)/lib  -l$(GTOOL5NAME)                   \
-	-L$(NETCDFDIR)/lib -l$(NETCDFFNEME) -l$(NETCDFNEME)
+	-L$(NETCDFDIR)/lib -l$(NETCDFFNEME) -l$(NETCDFNEME)   \
+
+OCN_LDFLAG += \
+	-lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_core      \
+	-lmkl_intel_lp64 -lmkl_intel_thread
 
 #- TOOL -------------
 TOOL_INCLUDEFLAG  = \
@@ -91,10 +113,17 @@ TOOL_INCLUDEFLAG  = \
 
 TOOL_LDFLAG      = \
 	-L$(LIBDIR) -lcommon                                  \
+	$(JCUPLIB)                                            \
 	-L$(SPMLDIR)/lib  -l$(SPMLNAME)                       \
 	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME)                   \
 	-L$(GTOOL5DIR)/lib  -l$(GTOOL5NAME)                   \
 	-L$(NETCDFDIR)/lib -l$(NETCDFFNEME) -l$(NETCDFNEME)
+
+#- DRIVER ------------------
+DRIVER_INCLUDEFLAG  = \
+	-I$(INCDIR)
+
+DRIVER_LDFLAG = 
 
 ###
 # make clean cleanup these.

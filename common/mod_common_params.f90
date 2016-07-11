@@ -13,7 +13,7 @@ module mod_common_params
 
   !
   !
-  character, parameter :: DEFAULT_DCCM_CONFNAME = "DCCM.conf"
+  character(*), parameter :: DEFAULT_DCCM_CONFNAME = "DCCM.conf"
   integer, parameter :: NUM_DCCM_COMP   = 2
 
   ! The parameters for jcup
@@ -56,6 +56,9 @@ module mod_common_params
 
   integer, parameter :: GMAPTAG_ATM2D_OCN2D = 1
 
+  integer, parameter :: ATM_NUM_GRIDTYPE  = 1
+  integer, parameter :: OCN_NUM_GRIDTYPE  = 1
+  
   !* The name of variable exchanged between components
   !
   
