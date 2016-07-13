@@ -617,7 +617,7 @@ contains
           else
              xy_SfcAlbedo4Atm(i,j) = AlbedoOcean
              xy_SfcTemp4Atm(i,j) = xy_SeaSfcTemp(i,j)
-             xy_SfcSnow4Atm(i,j) = 1d-13*CurrentTimeSec
+             xy_SfcSnow4Atm(i,j) = 0d0 
           end if
        end do
     end do
@@ -672,7 +672,7 @@ contains
          & xy_SfcAirTemp
 
     use DSIce_Admin_Constants_mod, only: &
-         & DensFreshWater
+         & DensFreshWater, LFreeze
     
     use DSIce_Boundary_vars_mod, only: &
          & xy_WindStressXAI => xy_WindStressUAI,            &
@@ -745,7 +745,8 @@ contains
 
           ! For ocean model
           xy_SfcHFlx_ns(i,j) =    xy_LUwRFlx(i,j) - xy_LDwRFlx(i,j)  &
-               &               +  xy_LatHFlx(i,j) + xy_SenHFlx(i,j)
+               &               +  xy_LatHFlx(i,j) + xy_SenHFlx(i,j)  &
+               &               +  LFreeze * xy_SnowFall(i,j)           ! [J/kg * kg.m-2.s-1]
 
           xy_SfcHFlx_sr(i,j) = xy_SUwRFlx(i,j) - xy_SDwRFlx(i,j)
 

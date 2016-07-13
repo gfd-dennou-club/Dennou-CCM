@@ -22,7 +22,7 @@ include NumRu
 #-----------------------------------------------------------------
 
 @dsogcmUtil = nil
-OutputNCName_SurfFlx = OutputNCName.gsub(".nc", "_SfcFlx.nc")
+OutputNCName_SfcFlx = OutputNCName.gsub(".nc", "_SfcFlx.nc")
 OutputNCName_SIce = OutputNCName.gsub(".nc", "_SIce.nc")
 VarDef = DennouOGCMUtil::VarNameDef
 AxisDef = DennouOGCMUtil::AxisNameDef
@@ -32,40 +32,63 @@ AxisDef = DennouOGCMUtil::AxisNameDef
 puts "CurrentDir=#{CurrentDir} .."
 @dsogcmUtil = DennouOGCMUtil.new(PlanetName, "#{CurrentDir}/#{VarDef::U}.nc")
 
-varBasicList = [ VarDef::PTempBasic, VarDef::TotDepthBasic ]
-varList = [ VarDef::PTempEdd, VarDef::Salt ]
-varSurfFlxList = [ "SurfHFlxO", "SurfFwFlxO", "SurfHFlxAI", "SurfHFlxAO" ]
+varList = [ VarDef::PTemp, VarDef::Salt, VarDef::H ]
+gp_PTemp, gp_Salt, gp_H  = GPhysUtil.get_GPhysObjs( varList )
 
-gp_PTempBasic, gp_TotDepthBasic \
- = GPhysUtil.get_GPhysObjs(varBasicList)
-
-gp_PTempEdd, gp_Salt \
- = GPhysUtil.get_GPhysObjs(varList)
-
-gp_PTemp = GPhysUtil.redef_GPhysObj( gp_PTempBasic.cut("time"=>0) + gp_PTempEdd, \
-                                     "PTemp", "potential temperature", "K")
 #-----------------------------------------------------------------------------------------
 
 ofile = NetCDF::create(OutputNCName)
 GPhys::IO.each_along_dims_write( \
-  [gp_PTemp, gp_Salt], ofile, AxisDef::Time){ \
-  |ptemp, salt|
+  [gp_PTemp, gp_Salt, gp_H], ofile, AxisDef::Time){ \
+  |ptemp, salt, h|
 
   time = ptemp.axis("time")
-  puts "time=#{time.pos.val[0]} [#{time.pos.units}] .."
+  puts "CommonVar: time=#{time.pos.val[0]} [#{time.pos.units}] .."
 
-  totdepth = gp_TotDepthBasic[true,true,0]
   [ \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMean3D(ptemp, totdepth),               \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMean3D(ptemp, h),                      \
                               "PTemp",                                                 \
                               "global mean of surface temperature", "K" ),             \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMean3D(salt, totdepth),                \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMean3D(salt, h),                       \
                               "Salt",                                                  \
                               "global mean of salinity", "psu" ),                      \
   ]
 }
 ofile.close
 
+#-----------------------------------------------------------------------------------------
+
+varSfcFlxList = [ "SfcHFlxO", "FreshWtFlxS" ]
+gp_SfcHFlxO, gp_FreshWtFlxS = GPhysUtil.get_GPhysObjs( varSfcFlxList )
+
+ofile = NetCDF::create(OutputNCName_SfcFlx)
+GPhys::IO.each_along_dims_write(
+  [gp_SfcHFlxO, gp_FreshWtFlxS, gp_H], ofile, AxisDef::Time){
+  | sfcHFlxO, freshWtFlxS, h|
+
+  time = sfcHFlxO.axis("time")
+  puts "SfcFlx: time=#{time.pos.val[0]} [#{time.pos.units}] .."
+  
+  [ \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(sfcHFlxO),                    \
+                              "SfcHFlxO",                                             \
+                              "global mean of surface heat flux", "W.m-2" ),          \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(freshWtFlxS),                 \
+                              "FreshWtFlxS",                                          \
+                              "global mean of freshwater flux", "m.s-1" ),	      \
+#    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(surfHFlxAI),                 \
+#                              "SurfHFlxAI",                                           \
+#                              "global mean of surface heatr flux (AI)", "W.s-3" ),    \
+#    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(surfHFlxAIO),                 \
+#                              "SurfHFlxAIO",                                           \
+#                              "global mean of surface heatr flux (AIO)", "W.s-3" )
+  ]  
+}
+ofile.close
+
+#-----------------------------------------------------------------------------------------
+
+=begin
 #-----------------------------------------------------------------------------------------
 
 ofile = NetCDF::create(OutputNCName_SIce)
@@ -172,3 +195,4 @@ ax_time = gp_PTemp_glmean.axis("time")
 tlen = ax_time.length
 dtemp_glmean = gp_PTemp_glmean.val[tlen-1] - gp_PTemp_glmean.val[0]
 p "Actual change of global mean temperature = #{dtemp_glmean} [K]"
+=end
