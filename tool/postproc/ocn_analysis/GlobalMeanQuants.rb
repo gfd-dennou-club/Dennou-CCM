@@ -88,41 +88,40 @@ ofile.close
 
 #-----------------------------------------------------------------------------------------
 
-=begin
-#-----------------------------------------------------------------------------------------
 
 ofile = NetCDF::create(OutputNCName_SIce)
-varList = ["IceThick", "SnowThick", "SIceCon", "SIceEn"]
-gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn   = GPhysUtil.get_GPhysObjs(varList)
+varList = [ "IceThick", "SnowThick", "SIceCon" ]
+gp_IceThick, gp_SnowThick, gp_SIceCon   = GPhysUtil.get_GPhysObjs(varList, Dir::pwd, "history_sice.nc")
 
-gp_SIceEnSum = gp_SIceEn.sum("sig2")
+#gp_SIceEnSum = gp_SIceEn.sum("sig2")
 
 GPhys::IO.each_along_dims_write( \
-  [gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEnSum], ofile, AxisDef::Time){ \
-  |iceThick, snowThick, siceCon, siceEn|
+  [gp_IceThick, gp_SnowThick, gp_SIceCon], ofile, AxisDef::Time){ \
+  |iceThick, snowThick, siceCon|
 
   time = iceThick.axis("time")
   puts "time=#{time.pos.val[0]} [#{time.pos.units}] .."
 
   [ \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(iceThick),                   \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(iceThick),                    \
                               "IceThick",                                             \
                               "global mean of ice effective thickness", "m" ), 	      \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(snowThick),                  \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(snowThick),                   \
                               "SnowThick",                                            \
                               "global mean of snow effective thickness", "m" ),       \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(siceCon),                    \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(siceCon),                     \
                               "SIceCon"  ,                                            \
-                              "global mean of sea ice thickness", "1"),             \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(siceEn),                    \
-                              "SIceEn"  ,                                            \
-                              "global mean of sea ice enthalpy", "J.m-2") 
+                              "global mean of sea ice thickness", "1"),               \
+#    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(siceEn),                    \
+#                              "SIceEn"  ,                                            \
+#                              "global mean of sea ice enthalpy", "J.m-2") 
   ]
 }
 ofile.close
 
 #-----------------------------------------------------------------------------------------
 
+=begin
 gp_SurfHFlxO, gp_SurfFwFlxO, gp_SurfHFlxAI, gp_SurfHFlxAO, gp_SIceCon \
  = GPhysUtil.get_GPhysObjs(varSurfFlxList.push("SIceCon"))
 
