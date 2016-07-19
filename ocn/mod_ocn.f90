@@ -219,9 +219,13 @@ contains
 
     my_comp%tstep = 0
     my_comp%loop_end_flag = .false.
+
     call DOGCM_Exp_driver_SetInitCond()
+
     call sice_advance_timestep(my_comp%tstep, my_comp%loop_end_flag)    
     call ogcm_advance_timestep(my_comp%tstep, my_comp%loop_end_flag)    
+    call pass_field_ocn2sice()
+
     call MessageNotify( 'M', module_name, "Put data ..")
     call set_and_put_data(TimeSecN)
     my_comp%tstep = 1
@@ -248,6 +252,7 @@ contains
     ! 局所変数
     ! Local variables
     !
+    integer, parameter :: MONITOR_STEPINT = 100
 
     ! 実行文; Executable statement
     !
@@ -264,7 +269,7 @@ contains
        
        !-----------------------------------------------------
        
-       if (my_comp%PRC_rank==0 .and. mod(my_comp%tstep, 100) == 0) then
+       if (my_comp%PRC_rank==0 .and. mod(my_comp%tstep, MONITOR_STEPINT) == 0) then
           call MessageNotify( 'M', module_name,                                &
                & "TimeSecN=%f, EndTimeSec=%f",  d=(/  TimeSecN, EndTimeSec /)  &
                & )
@@ -275,12 +280,14 @@ contains
        call sice_advance_timestep( my_comp%tstep, & ! (in)
             & my_comp%loop_end_flag               & ! (out)
             & )
-
+       call pass_field_sice2ocn()
+       
        !- Advance ocean component
        call ogcm_advance_timestep( my_comp%tstep, & ! (in)
             & my_comp%loop_end_flag               & ! (out)
             & )
-
+       call pass_field_ocn2sice()
+       
 
        !-----------------------------------------------------
        
@@ -297,7 +304,7 @@ contains
     loop_flag = .false.
     
   end subroutine ocn_run
-
+  
   subroutine ocn_fin()
 
     ! モジュール引用; Use statement
@@ -323,6 +330,90 @@ contains
 
   !- Private subroutines -----------------------------------------------------------------
 
+  subroutine pass_field_ocn2sice()
+
+    ! モジュール引用; Use statements
+    !
+    
+    use DSIce_main_mod, only: &
+         & DSIce_main_update_OcnField
+
+    use DOGCM_Admin_TInteg_mod, only: &
+         & TIMELV_ID_N
+
+    use DOGCM_Admin_Grid_mod, only: &
+         & IS, IE, JS, JE, &
+         & KS, IA, JA,     &
+         & xy_Topo, z_KAXIS_Weight
+    
+    use DOGCM_Admin_Variable_mod, only: &
+         & xyza_U, xyza_V,                    &
+         & xyzaa_TRC, TRCID_PTEMP, TRCID_SALT
+
+    ! 実行文; Executable statement
+    !
+    
+    call DSIce_main_update_OcnField( &
+         & xyzaa_TRC(:,:,KS,TRCID_PTEMP,TIMELV_ID_N),             & ! (in)
+         & xyzaa_TRC(:,:,KS,TRCID_SALT,TIMELV_ID_N),              & ! (in)
+         & z_KAXIS_Weight(KS)*xy_Topo(:,:),                       & ! (in)
+         & xyza_U(:,:,KS,TIMELV_ID_N), xyza_V(:,:,KS,TIMELV_ID_N) & ! (in)
+         & )
+
+!!$    write(*,*) "SSTA=", xyzaa_TRC(IS,JS:JE,KS,TRCID_PTEMP,TIMELV_ID_N)
+    
+  end subroutine pass_field_ocn2sice
+
+  !--------------------------------------------------------
+  
+  subroutine pass_field_sice2ocn()
+
+    ! モジュール引用; Use statements
+    !
+    
+    use DOGCM_main_mod, only: &
+         & DOGCM_main_update_SIceField
+
+    use DSIce_Admin_Constants_mod, only: &
+         & IceMaskMin
+    
+    use DSIce_Admin_TInteg_mod, only: &
+         & TIMELV_ID_B
+
+    use DSIce_Admin_Grid_mod, only: &
+         & IS, IE, JS, JE, &
+         & KS, IA, JA
+    
+    use DSIce_Admin_Variable_mod, only: &
+         & xya_SIceCon
+
+    use DSIce_Boundary_vars_mod, only: &
+         & xy_WindStressUAI, xy_WindStressVAI, &
+         & xy_WindStressUIO, xy_WindStressVIO, &
+         & xy_BtmHFlxIO, xy_FreshWtFlxS
+
+    ! 局所変数
+    ! Local variables
+    !
+
+    real(DP) :: xy_BtmHFlxIO_sr(IA,JA)
+    
+    ! 実行文; Executable statement
+    !
+
+    xy_BtmHFlxIO_sr(:,:) = 0d0
+    call DOGCM_main_update_SIceField( &
+         & (xya_SIceCon(:,:,TIMELV_ID_B) >= IceMaskMin), & ! (in)
+         & xya_SIceCon(:,:,TIMELV_ID_B),                 & ! (in)
+         & xy_BtmHFlxIO, xy_BtmHFlxIO_sr,                & ! (in)
+         & xy_FreshWtFlxS                                & ! (in)
+         & )
+
+!!$    write(*,*) "BtmHFlxIO=", xy_BtmHFlxIO(IS,JS:JE)
+    
+  end subroutine pass_field_sice2ocn
+
+  !-----------------------------------------------------------------------
 
   !
   !
@@ -560,6 +651,8 @@ contains
     
     !* Dennou-OGCM / Sea-ice
 
+    use UnitConversion_mod, only: &
+       & degC2K
 
     use DSIce_Admin_Constants_mod, only: &
          & AlbedoOcean, IceMaskMin
@@ -577,8 +670,9 @@ contains
     use DOGCM_Admin_Variable_mod, only: &
          & xyzaa_TRC,  &
          & TRCID_PTEMP
+
     
-    !* DCCM
+    !* Dennou-CCM
     
     use jcup_interface, only: &
          & jcup_put_data
@@ -612,7 +706,7 @@ contains
        do i = ISO, IEO
           if ( xya_SIceCon(i,j,SICE_TLN) > IceMaskMin ) then
              xy_SfcAlbedo4Atm(i,j) = xy_SfcAlbedoAI(i,j)
-             xy_SfcTemp4Atm(i,j) = xya_SIceSfcTemp(i,j,SICE_TLN)
+             xy_SfcTemp4Atm(i,j) = degC2K( xya_SIceSfcTemp(i,j,SICE_TLN) )
              xy_SfcSnow4Atm(i,j) = xya_SnowThick(i,j,SICE_TLN)
           else
              xy_SfcAlbedo4Atm(i,j) = AlbedoOcean
@@ -621,7 +715,7 @@ contains
           end if
        end do
     end do
-
+    
     call ocn_set_send_2d( o2a_SfcTemp_id, xy_SfcTemp4Atm(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( o2a_SfcAlbedo_id, xy_SfcAlbedo4Atm(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( o2a_SfcSnow_id, xy_SfcSnow4Atm(ISO:IEO,JSO:JEO) )
@@ -664,11 +758,11 @@ contains
          & LatentHeat
     
     use DOGCM_Boundary_vars_mod, only: &
-         & xy_WindStressXAO => xy_WindStressU, &
-         & xy_WindStressYAO => xy_WindStressV, &
-         & xy_SfcHFlx_ns, xy_SfcHFlx_sr,       &
-         & xy_DSfcHFlxDTs,                     &
-         & xy_FreshWtFlx, xy_FreshWtFlxS,      &
+         & xy_WindStressXAO => xy_WindStressU,   &
+         & xy_WindStressYAO => xy_WindStressV,   &
+         & xy_SfcHFlx0_ns, xy_SfcHFlx0_sr,       &
+         & xy_DSfcHFlxDTs,                       &
+         & xy_FreshWtFlx0, xy_FreshWtFlxS0,      &
          & xy_SfcAirTemp
 
     use DSIce_Admin_Constants_mod, only: &
@@ -679,7 +773,7 @@ contains
          & xy_WindStressYAI => xy_WindStressVAI,            &
          & xy_SDwRFlx, xy_LDwRFlx, xy_LatHFlx, xy_SenHFlx,  &
          & xy_DSfcHFlxAIDTs,                                &
-         & xy_RainFall, xy_SnowFall, xy_Evap
+         & xy_RainFall, xy_SnowFall, xy_Evap, xy_DLatSenHFlxDTs
     
     ! 宣言文; Declareration statements
     !            
@@ -744,23 +838,23 @@ contains
        do i = ISO, IEO
 
           ! For ocean model
-          xy_SfcHFlx_ns(i,j) =    xy_LUwRFlx(i,j) - xy_LDwRFlx(i,j)  &
-               &               +  xy_LatHFlx(i,j) + xy_SenHFlx(i,j)  &
-               &               +  LFreeze * xy_SnowFall(i,j)           ! [J/kg * kg.m-2.s-1]
+          xy_SfcHFlx0_ns(i,j) =    xy_LUwRFlx(i,j) - xy_LDwRFlx(i,j)  &
+               &               +  xy_LatHFlx(i,j) + xy_SenHFlx(i,j)   
 
-          xy_SfcHFlx_sr(i,j) = xy_SUwRFlx(i,j) - xy_SDwRFlx(i,j)
+          xy_SfcHFlx0_sr(i,j) = xy_SUwRFlx(i,j) - xy_SDwRFlx(i,j)
 
-          xy_Evap(i,j) = xy_LatHFlx(i,j)/(LatentHeat*DensFreshWater)
           
-          xy_FreshWtFlxS(i,j) =   (xy_RainFall(i,j) + xy_SnowFall(i,j))/DensFreshWater &
-               &                - xy_Evap(i,j)
-          xy_FreshWtFlx(i,j) = xy_FreshWtFlxS(i,j)
+          xy_FreshWtFlxS0(i,j) = (   (xy_RainFall(i,j) + xy_SnowFall(i,j)) &
+               &                   - xy_LatHFlx(i,j)/LatentHeat            &
+               &                 )/DensFreshWater
+          xy_FreshWtFlx0(i,j) = xy_FreshWtFlxS0(i,j)
 
           ! For sea-ice model
           xy_WindStressXAI(i,j) = xy_WindStressXAO(i,j)
           xy_WindStressYAI(i,j) = xy_WindStressYAO(i,j)          
-          xy_DSfcHFlxAIDTs(i,j) = xy_DSfcHFlxDTs(i,j)
-
+          !xy_DSfcHFlxAIDTs(i,j) = xy_DSfcHFlxDTs(i,j)
+          xy_DLatSenHFlxDTs(i,j) = xy_DSfcHFlxDTs(i,j)
+          xy_Evap(i,j) = xy_LatHFlx(i,j)/LatentHeat    ! [kg/(m2.s)]
        end do
     end do
 

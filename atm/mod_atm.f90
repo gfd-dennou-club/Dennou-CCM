@@ -211,7 +211,8 @@ contains
     ! 局所変数
     ! Local variables
     !
-
+    integer, parameter :: MONITOR_STEPINT = 200
+    
     ! 実行文; Executable statement
     !
     
@@ -226,7 +227,7 @@ contains
        call get_and_write_data( TimeSecN )
 
        
-       if (my_comp%PRC_rank==0 .and. mod(my_comp%tstep, 100) == 0) then
+       if (my_comp%PRC_rank==0 .and. mod(my_comp%tstep, MONITOR_STEPINT) == 0) then
           call MessageNotify( 'M', module_name,                                &
                & "TimeSecN=%f, EndTimeSec=%f",  d=(/  TimeSecN, EndTimeSec /)  &
                & )
@@ -234,11 +235,13 @@ contains
 
        !------------------------------------------------------
           
-       call agcm_advance_timestep( my_comp%tstep, & ! (in)
-            & my_comp%loop_end_flag               & ! (out)
+       call agcm_advance_timestep( my_comp%tstep,  & ! (in)
+            & my_comp%loop_end_flag,               & ! (inout)
+            & skip_flag = .false.                  & ! (in)
             & )
-
+       
        !------------------------------------------------------
+!       write(*,*) "-> COUPLER Put: atm my_rank=", my_comp%PRC_rank
        
        call set_and_put_data( TimeSecN ) ! (in)
        call jcup_inc_time( my_comp%name, my_comp%InitTimeInfo ) ! (in)
