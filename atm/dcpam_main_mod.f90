@@ -1066,10 +1066,11 @@ contains
 
   !------------------------------------------------------------------
   
-  subroutine dcpam_advance_timestep(tstep, end_loop_flag)
+  subroutine dcpam_advance_timestep(tstep, end_loop_flag, skip_flag)
 
     integer, intent(in) :: tstep
     logical, intent(inout) :: end_loop_flag
+    logical, intent(in) :: skip_flag
 
     integer:: n                 ! 組成方向に回る DO ループ用作業変数
                               ! Work variables for DO loop in dimension of constituents
@@ -1086,7 +1087,8 @@ contains
     if(end_loop_flag) return
 
 !    write(*,*) "ATM :advance_timestep..", tstep, TimeN
-    
+if (.not. skip_flag) then    
+
     ! 地表面高度の設定
     ! Set surface height
     !
@@ -2901,6 +2903,8 @@ contains
       xy_SurfSnowA  = 0.0_DP
     end select
 
+endif ! end if for skip_flag
+ 
     ! 時刻の進行
     ! Progress time
     !

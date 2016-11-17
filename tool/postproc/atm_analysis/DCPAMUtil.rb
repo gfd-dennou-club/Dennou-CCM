@@ -32,14 +32,15 @@ class DCPAMUtil
 
     @planetName = planetName
 
-    @gp_lon = GPhys::IO.open_gturl(ncpath+"@lon")
-    @gp_lat = GPhys::IO.open_gturl(ncpath+"@lat")
-    @gp_sig = GPhys::IO.open_gturl(ncpath+"@sig")    
-    @gp_sigm = GPhys::IO.open_gturl(ncpath+"@sigm")    
-    @gp_lonIntWt = GPhys::IO.open_gturl(ncpath+"@lon_weight")
-    @gp_latIntWt = GPhys::IO.open_gturl(ncpath+"@lat_weight")
-    @gp_sigIntWt = GPhys::IO.open_gturl(ncpath+"@sig_weight")
+    p "ncpath=", ncpath
 
+    @gp_lon = GPhys::IO.open(ncpath,"lon")
+    @gp_lat = GPhys::IO.open(ncpath,"lat")
+    @gp_sig = GPhys::IO.open(ncpath,"sig")    
+    @gp_sigm = GPhys::IO.open(ncpath,"sigm")    
+    @gp_lonIntWt = GPhys::IO.open(ncpath,"lon_weight")
+    @gp_latIntWt = GPhys::IO.open(ncpath,"lat_weight")
+    @gp_sigIntWt = GPhys::IO.open(ncpath,"sig_weight")
 
     @lonAxisName = "lon"
     @latAxisName = "lat"

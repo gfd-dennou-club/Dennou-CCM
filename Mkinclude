@@ -16,7 +16,7 @@
  SPMLNAME        = spml-omp
 
  ISPACKDIR       = $(HOME)/lib/ispack
- # isp-{avx,sse64,fort}
+ # isp-{avx,sse32,sse64,fort}
  ISPACKNAME4ATM  = isp-fort
  ISPACKNAME4OCN  = isp-sse64
 
@@ -115,7 +115,7 @@ TOOL_LDFLAG      = \
 	-L$(LIBDIR) -lcommon                                  \
 	$(JCUPLIB)                                            \
 	-L$(SPMLDIR)/lib  -l$(SPMLNAME)                       \
-	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME)                   \
+	-L$(ISPACKDIR)/lib  -l$(ISPACKNAME4ATM)               \
 	-L$(GTOOL5DIR)/lib  -l$(GTOOL5NAME)                   \
 	-L$(NETCDFDIR)/lib -l$(NETCDFFNEME) -l$(NETCDFNEME)
 

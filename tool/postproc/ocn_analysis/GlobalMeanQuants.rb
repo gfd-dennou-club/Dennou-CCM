@@ -1,3 +1,5 @@
+#!/usr/bin/env ruby
+
 #-------------------------------------------------------------
 # Copyright (c) 2015-2015 Kawai Yuta. All rights reserved.
 #-------------------------------------------------------------
@@ -22,7 +24,7 @@ include NumRu
 #-----------------------------------------------------------------
 
 @dsogcmUtil = nil
-OutputNCName_SurfFlx = OutputNCName.gsub(".nc", "_SfcFlx.nc")
+OutputNCName_SfcFlx = OutputNCName.gsub(".nc", "_SfcFlx.nc")
 OutputNCName_SIce = OutputNCName.gsub(".nc", "_SIce.nc")
 VarDef = DennouOGCMUtil::VarNameDef
 AxisDef = DennouOGCMUtil::AxisNameDef
@@ -32,34 +34,24 @@ AxisDef = DennouOGCMUtil::AxisNameDef
 puts "CurrentDir=#{CurrentDir} .."
 @dsogcmUtil = DennouOGCMUtil.new(PlanetName, "#{CurrentDir}/#{VarDef::U}.nc")
 
-varBasicList = [ VarDef::PTempBasic, VarDef::TotDepthBasic ]
-varList = [ VarDef::PTempEdd, VarDef::Salt ]
-varSurfFlxList = [ "SurfHFlxO", "SurfFwFlxO", "SurfHFlxAI", "SurfHFlxAO" ]
+varList = [ VarDef::PTemp, VarDef::Salt, VarDef::H ]
+gp_PTemp, gp_Salt, gp_H  = GPhysUtil.get_GPhysObjs( varList )
 
-gp_PTempBasic, gp_TotDepthBasic \
- = GPhysUtil.get_GPhysObjs(varBasicList)
-
-gp_PTempEdd, gp_Salt \
- = GPhysUtil.get_GPhysObjs(varList)
-
-gp_PTemp = GPhysUtil.redef_GPhysObj( gp_PTempBasic.cut("time"=>0) + gp_PTempEdd, \
-                                     "PTemp", "potential temperature", "K")
 #-----------------------------------------------------------------------------------------
 
 ofile = NetCDF::create(OutputNCName)
 GPhys::IO.each_along_dims_write( \
-  [gp_PTemp, gp_Salt], ofile, AxisDef::Time){ \
-  |ptemp, salt|
+  [gp_PTemp, gp_Salt, gp_H], ofile, AxisDef::Time){ \
+  |ptemp, salt, h|
 
   time = ptemp.axis("time")
-  puts "time=#{time.pos.val[0]} [#{time.pos.units}] .."
+  puts "CommonVar: time=#{time.pos.val[0]} [#{time.pos.units}] .."
 
-  totdepth = gp_TotDepthBasic[true,true,0]
   [ \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMean3D(ptemp, totdepth),               \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMean3D(ptemp, h),                      \
                               "PTemp",                                                 \
                               "global mean of surface temperature", "K" ),             \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMean3D(salt, totdepth),                \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMean3D(salt, h),                       \
                               "Salt",                                                  \
                               "global mean of salinity", "psu" ),                      \
   ]
@@ -68,38 +60,73 @@ ofile.close
 
 #-----------------------------------------------------------------------------------------
 
-ofile = NetCDF::create(OutputNCName_SIce)
-varList = ["IceThick", "SnowThick", "SIceCon", "SIceEn"]
-gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn   = GPhysUtil.get_GPhysObjs(varList)
+varSfcFlxList = [ "SfcHFlxO", "FreshWtFlxS" ]
+gp_SfcHFlxO, gp_FreshWtFlxS = GPhysUtil.get_GPhysObjs( varSfcFlxList )
 
-gp_SIceEnSum = gp_SIceEn.sum("sig2")
+ofile = NetCDF::create(OutputNCName_SfcFlx)
+GPhys::IO.each_along_dims_write(
+  [gp_SfcHFlxO, gp_FreshWtFlxS, gp_H], ofile, AxisDef::Time){
+  | sfcHFlxO, freshWtFlxS, h|
+
+  time = sfcHFlxO.axis("time")
+  puts "SfcFlx: time=#{time.pos.val[0]} [#{time.pos.units}] .."
+  
+  [ \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(sfcHFlxO),                    \
+                              "SfcHFlxO",                                             \
+                              "global mean of surface heat flux", "W.m-2" ),          \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(freshWtFlxS),                 \
+                              "FreshWtFlxS",                                          \
+                              "global mean of freshwater flux", "m.s-1" ),	      \
+#    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(surfHFlxAI),                 \
+#                              "SurfHFlxAI",                                           \
+#                              "global mean of surface heatr flux (AI)", "W.s-3" ),    \
+#    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(surfHFlxAIO),                 \
+#                              "SurfHFlxAIO",                                           \
+#                              "global mean of surface heatr flux (AIO)", "W.s-3" )
+  ]  
+}
+ofile.close
+
+#-----------------------------------------------------------------------------------------
+
+
+ofile = NetCDF::create(OutputNCName_SIce)
+varList = [ "IceThick", "SnowThick", "SIceCon", "SIceEn" ]
+gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn   = GPhysUtil.get_GPhysObjs(varList, Dir::pwd, "history_sice.nc")
+
+#gp_SIceEnSum = gp_SIceEn.sum("sig2")
 
 GPhys::IO.each_along_dims_write( \
-  [gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEnSum], ofile, AxisDef::Time){ \
+  [gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn], ofile, AxisDef::Time){ \
   |iceThick, snowThick, siceCon, siceEn|
 
   time = iceThick.axis("time")
   puts "time=#{time.pos.val[0]} [#{time.pos.units}] .."
 
   [ \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(iceThick),                   \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(iceThick),                    \
                               "IceThick",                                             \
                               "global mean of ice effective thickness", "m" ), 	      \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(snowThick),                  \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(snowThick),                   \
                               "SnowThick",                                            \
                               "global mean of snow effective thickness", "m" ),       \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(siceCon),                    \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(siceCon),                     \
                               "SIceCon"  ,                                            \
-                              "global mean of sea ice thickness", "1"),             \
-    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(siceEn),                    \
+                              "global mean of sea ice thickness", "1"),               \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(siceEn.sum('sig2')),          \
                               "SIceEn"  ,                                            \
-                              "global mean of sea ice enthalpy", "J.m-2") 
+                              "global mean of sea ice energy", "J/m2"),               \
+#    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(siceEn),                    \
+#                              "SIceEn"  ,                                            \
+#                              "global mean of sea ice enthalpy", "J.m-2") 
   ]
 }
 ofile.close
 
 #-----------------------------------------------------------------------------------------
 
+=begin
 gp_SurfHFlxO, gp_SurfFwFlxO, gp_SurfHFlxAI, gp_SurfHFlxAO, gp_SIceCon \
  = GPhysUtil.get_GPhysObjs(varSurfFlxList.push("SIceCon"))
 
@@ -172,3 +199,4 @@ ax_time = gp_PTemp_glmean.axis("time")
 tlen = ax_time.length
 dtemp_glmean = gp_PTemp_glmean.val[tlen-1] - gp_PTemp_glmean.val[0]
 p "Actual change of global mean temperature = #{dtemp_glmean} [K]"
+=end

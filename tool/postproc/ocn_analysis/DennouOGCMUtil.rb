@@ -61,8 +61,8 @@ class DennouOGCMUtil
 #    puts "Initialize an object of DCPAMUtil class.."
   end
 
-  def globalIntLonSig(gphys, gp_totDepth)
-    tmp = ((@gp_sigIntWt*gphys).sum(@sigAxisName))*gp_totDepth
+  def globalIntLonSig(gphys, gp_H)
+    tmp = ((@gp_sigIntWt*gphys*gp_H).sum(@sigAxisName))
     return @const::RPlanet * (PI/180.0*@gp_lat).cos * ( @gp_lonIntWt*tmp).sum(@lonAxisName)
   end
   
@@ -70,18 +70,24 @@ class DennouOGCMUtil
     return @const::RPlanet**2 * (@gp_lonIntWt*(@gp_latIntWt*gphys)).sum(@lonAxisName, @latAxisName)
   end
   
-  def globalIntLonLatSig(gphys, gp_totDepth)
-    tmp = ((@gp_sigIntWt*gphys).sum(@sigAxisName))*gp_totDepth
+  def globalIntLonLatSig(gphys, gp_H)
+    tmp = ((@gp_sigIntWt*gphys*gp_H).sum(@sigAxisName))
     return @const::RPlanet**2 * (@gp_lonIntWt*(@gp_latIntWt*tmp)).sum(@lonAxisName, @latAxisName)
   end
 
-  def globalMeanSurf(gphys)
+  def globalMeanSfc(gphys)
     return globalIntLonLat(gphys)/@globalSurfArea
   end
 
-  def globalMean3D(gphys, gp_totDepth)
-    totVol = globalIntLonLat(gp_totDepth)
-    return globalIntLonLatSig(gphys, gp_totDepth)/totVol
+  def globalMeanLonLat(gphys)
+    return globalIntLonLat(gphys)/@globalSurfArea
+  end
+  
+  def globalMean3D(gphys, gp_H)
+    gp_one = gp_H.copy
+    gp_one[false] = 1.0
+    totVol = globalIntLonLatSig(gp_one, gp_H)
+    return globalIntLonLatSig(gphys, gp_H)/totVol
   end
   
   def gen_3DGPysObj(name, long_name, units, timeAxis=nil, ax_Z=@ax_Sig)
