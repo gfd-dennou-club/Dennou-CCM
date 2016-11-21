@@ -1,41 +1,85 @@
+!-------------------------------------------------------------
+! Copyright (c) 2015-2016 Kawai Yuta. All rights reserved.
+!-------------------------------------------------------------
+!> @brief a template module
+!! 
+!! @author Kawai Yuta
+!!
+!!
 module grid_mapping_util
 
-  use dc_types
+  ! モジュール引用; Use statement
+  !
+
+  !* gtool
   
+  use dc_types, only: &
+       & DP, TOKEN, STRING
+
+  ! 宣言文; Declareration statements
+  !      
   implicit none
   private
 
+  ! 公開手続き
+  ! Public procedure
+  !      
   public :: gen_gridmapfile_lonlat2lonlat
   public :: set_mappingTable_interpCoef
   
 contains
 
   subroutine gen_gridmapfile_lonlat2lonlat( &
-       & filename, &
-       & x_LonS, y_LatS, x_LonR, y_LatR &
+       & filename,                          & ! (in)
+       & x_LonS, y_LatS, x_LonR, y_LatR     & ! (in)
        & )
-    character(*), intent(in) :: filename
-    real(DP), dimension(:), intent(in) :: x_LonS, y_LatS
-    real(DP), dimension(:), intent(in) :: x_LonR, y_LatR
 
-    integer :: nxr, nyr, nxs, nys
-    integer :: ir, jr, is, js
-    integer :: i, j
+    ! モジュール引用; Use statement
+    !    
+    use dc_iounit, only: &
+         & FileOpen
+    
+    ! 宣言文; Declareration statements
+    !                
+    character(*), intent(in) :: filename
+    real(DP), intent(in) :: x_LonS(:)
+    real(DP), intent(in) :: y_LatS(:)
+    real(DP), intent(in) :: x_LonR(:)
+    real(DP), intent(in) :: y_LatR(:)
+
+    ! 局所変数
+    ! Local variables
+    !        
+    integer :: nxr
+    integer :: nyr
+    integer :: nxs
+    integer :: nys
+    integer :: ir
+    integer :: jr
+    integer :: is
+    integer :: js
+    
+    integer :: i
+    integer :: j
+    
     integer :: deviceID
 
     real(DP) :: dlon_r!, dlat_r
     real(DP) :: dlon_s!, dlat_s
     real(DP) :: coef(4)
     logical :: extp_flag
+
+    ! 実行文; Executable statement
+    !
     
     nxr = size(x_LonR); nyr = size(y_LatR)
     nxs = size(x_LonS); nys = size(y_LatS)
     
     dlon_r = 360d0/dble(nxr); !dlat_r = 180d0/(nyr - 1)
     dlon_s = 360d0/dble(nxs); !dlat_s = 180d0/(nys - 1)
-    
-    deviceID = 10
-    open(unit=deviceID, file=trim(filename), status='replace')
+
+    call FileOpen(deviceID, file=trim(filename), mode='rw')
+
     do jr=1, nyr
        !       js = int(dlat_r*(jr-1)/dlat_s) + 1
        js = get_correspondID_latS(y_LatR(jr), y_LatS, extp_flag)
@@ -88,7 +132,7 @@ contains
       real(DP), intent(in) :: y_LatS(:)
       logical, intent(out) :: extp_flag
       integer :: latSID
-      
+
       integer :: j, nys
 
       nys = size(y_LatS)
@@ -130,23 +174,43 @@ contains
     end function cal_coef_axisym
     
   end subroutine gen_gridmapfile_lonlat2lonlat
+
+  !---------------------------------------------------------------------------
   
-  subroutine set_mappingTable_interpCoef(gridmapfile, GNXS, GNXR, &
-       & send_index, recv_index, coef_s )
+  subroutine set_mappingTable_interpCoef( gridmapfile, GNXS, GNXR, &  ! (in)
+       & send_index, recv_index, coef_s                            &  ! (inout)
+       & )
+
+    ! モジュール引用; Use statement
+    !    
+    use dc_iounit, only: &
+         & FileOpen
+    
+    ! 宣言文; Declareration statements
+    !    
     character(*), intent(in) :: gridmapfile
-    integer, intent(in) :: GNXS, GNXR
-    integer, intent(inout), allocatable :: &
-         & send_index(:), recv_index(:)
+    integer, intent(in) :: GNXS
+    integer, intent(in) :: GNXR
+    integer, intent(inout), allocatable :: send_index(:)
+    integer, intent(inout), allocatable :: recv_index(:)
     real(DP), intent(inout), allocatable :: coef_s(:)
 
+    ! 局所変数
+    ! Local variables
+    !              
     integer :: deviceID
     integer :: nInterpOp
-    integer :: ir, jr, is, js
+    integer :: ir
+    integer :: is
+    integer :: jr    
+    integer :: js
     real(DP) :: coef
     integer :: n
-    
-    deviceID = 10
-    open(deviceID, file=trim(gridmapfile)) 
+
+    ! 実行文; Executable statement
+    !
+
+    call FileOpen(deviceID, file=trim(gridmapfile), mode='r')
 
     !
     !
@@ -174,8 +238,8 @@ contains
     close(deviceID)
     
   end subroutine set_mappingTable_interpCoef
-  
-!!!!!!!!!
+
+  !---------------------------------------------------------------------------
   
   real(DP) function rad2deg(rad)
     real(DP), intent(in) :: rad
