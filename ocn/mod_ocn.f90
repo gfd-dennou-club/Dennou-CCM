@@ -615,7 +615,8 @@ contains
          & set_operation_index, &
          & set_A_to_O_coef, set_O_to_A_coef
 
-    use grid_mapping_util, only: &
+!    use grid_mapping_util, only: &
+    use grid_mapping_util_jones99, only: &
          & set_mappingTable_interpCoef
 
     use mod_common_params
@@ -768,6 +769,9 @@ contains
     
     !* Dennou-OGCM
 
+    use SpmlUtil_mod, only: &
+         & AvrLonLat_xy
+    
     use DOGCM_Admin_Constants_mod, only: &
          & LatentHeat
     
@@ -872,15 +876,8 @@ contains
        end do
     end do
 
-    
-!!$    !
-!!$    !
 !!$    if( mod(CurrentTimeSec, dble(AO_COUPLING_CYCLE_SEC)) == 0d0 ) then
-!!$
-!!$    if(my_rank>12) then
-!!$       write(*,*) "atm: rank=", my_rank, "SurfTemp=", xy_SurfTemp(0,1:2), "lat=", y_Lat(1:2)/acos(-1d0)*180d0
-!!$    end if
-!!$       
+!!$       write(*,*) "Ocn: FreshWtFlxAIO=", AvrLonLat_xy(xy_FreshWtFlxS0(ISO:IEO,JSO:JEO))*1d3
 !!$    end if
 
   contains

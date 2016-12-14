@@ -919,6 +919,8 @@ module dcpam_main_mod
 
 
   integer :: MPI_MY_COMM
+
+  real(DP) :: WtMassA, WtMassB
   
 contains
 
@@ -1078,6 +1080,8 @@ contains
     integer:: i
     integer:: j
     integer:: k
+
+    real(DP) :: xy_Tmp1(0:imax-1,jmax)
     
     ! 時間積分
     ! Time integration
@@ -2746,7 +2750,7 @@ if (.not. skip_flag) then
       ! Interpolate temperature on half sigma level, 
       ! and calculate pressure and height
       !
-      call AuxVars( &
+       call AuxVars( &
         & xy_PsA, xyz_TempA, xyzf_QMixA(:,:,:,IndexH2OVap),& ! (in )
         & xyr_Press = xyr_Press                            & ! (out) optional
         & )
@@ -2784,6 +2788,8 @@ if (.not. skip_flag) then
     ! Time filter (Williams, 2009)
     !
     if ( .not. flag_initial .or. .not. firstloop ) then
+
+       
       call TimeFilterWilliams2009(                 &
         & xyz_UB, xyz_VB, xyz_TempB, xyzf_QMixB, xy_PsB, &   ! (in)
         & xyz_UN, xyz_VN, xyz_TempN, xyzf_QMixN, xy_PsN, &   ! (inout)

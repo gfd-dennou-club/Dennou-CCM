@@ -16,7 +16,10 @@ program gmapgen_main
   use dc_message, only: &
        & MessageNotify
   
-  use grid_mapping_util, only: &
+!!$  use grid_mapping_util, only: &
+!!$       & gen_gridmapfile_lonlat2lonlat
+
+  use grid_mapping_util_jones99, only: &
        & gen_gridmapfile_lonlat2lonlat
 
   ! 宣言文 ; Declaration statements  
@@ -31,30 +34,34 @@ program gmapgen_main
   character(STRING) :: gmapfile_AO_NAME
   real(DP), allocatable :: x_LonA(:)
   real(DP), allocatable :: y_LatA(:)
+  real(DP), allocatable :: x_IntWtLonA(:)
+  real(DP), allocatable :: y_IntWtLatA(:)
   
   integer :: IMO, JMO, KMO
   integer :: NMO
   character(STRING) :: gmapfile_OA_NAME
   real(DP), allocatable :: x_LonO(:)
   real(DP), allocatable :: y_LatO(:)
-
-
+  real(DP), allocatable :: x_IntWtLonO(:)
+  real(DP), allocatable :: y_IntWtLatO(:)
+  
   character(*), parameter :: PROGRAM_NAME = "gmapgen_main"
+
   
   ! 実行文; Executable statements
   !
-
+  
   ! Read configuration form namelist
   !
   call read_config()
   
   ! Get grid information
   !
-  call get_LonLatGrid( x_LonA, y_LatA, & ! (out)
+  call get_LonLatGrid( x_LonA, y_LatA, x_IntWtLonA, y_IntWtLatA, & ! (out)
        & IMA, JMA, NMA )                 ! (in)
-  call get_LonLatGrid( x_LonO, y_LatO, & ! (out)
+  call get_LonLatGrid( x_LonO, y_LatO, x_IntWtLonO, y_IntWtLatO, & ! (out)
        & IMO, JMO, NMO )                 ! (in)
-
+  
 !!$  write(*,*) "=Atm:"
 !!$  write(*,*) "*Lon=", x_LonA
 !!$  write(*,*) "*Lat=", y_LatA
@@ -62,19 +69,28 @@ program gmapgen_main
 !!$  write(*,*) "*Lon=", x_LonO
 !!$  write(*,*) "*Lat=", y_LatO
 
+!!$  !
+!!$  !
+!!$  call gen_gridmapfile_lonlat2lonlat( gmapfile_AO_NAME, &
+!!$       & x_LonA, y_LatA, x_LonO, y_LatO )
+!!$
+!!$  call gen_gridmapfile_lonlat2lonlat( gmapfile_OA_NAME, &
+!!$       & x_LonO, y_LatO, x_LonA, y_LatA ) 
   !
   !
-  call gen_gridmapfile_lonlat2lonlat( gmapfile_AO_NAME, &
-       & x_LonA, y_LatA, x_LonO, y_LatO )
-
-  call gen_gridmapfile_lonlat2lonlat( gmapfile_OA_NAME, &
-       & x_LonO, y_LatO, x_LonA, y_LatA )
+  call gen_gridmapfile_lonlat2lonlat( gmapfile_AO_NAME,          &
+       & x_LonA, y_LatA, x_LonO, y_LatO,                         &
+       & x_IntWtLonA, y_IntWtLatA, x_IntWtLonO, y_IntWtLatO )
+  
+  call gen_gridmapfile_lonlat2lonlat( gmapfile_OA_NAME,          &
+       & x_LonO, y_LatO, x_LonA, y_LatA,                         &
+       & x_IntWtLonO, y_IntWtLatO, x_IntWtLonA, y_IntWtLatA)
 
   ! Output some information about grid mapping table
   !
   call check_mappingTable( gmapfile_AO_NAME, IMA, IMO )
-  call check_mappingTable( gmapfile_OA_NAME, IMO, IMA )  
-  
+  call check_mappingTable( gmapfile_OA_NAME, IMO, IMA )
+
 contains
   subroutine read_config()
 
@@ -144,19 +160,28 @@ contains
     
   end subroutine read_config
   
-  subroutine get_LonLatGrid(x_Lon, y_Lat, iMax, jMax, nMax)
-    use w_module, only: &
-         & w_Initial, w_Finalize, &
-         & xy_Lon, xy_Lat
+  subroutine get_LonLatGrid( &
+       & x_Lon, y_Lat, x_LonIntWt, y_LatIntWt, &  ! (inout)
+       & iMax, jMax, nMax )                       ! (in)
 
+    use w_module, only: &
+         & w_Initial, w_Finalize,     &
+         & xy_Lon, xy_Lat,            &
+         & x_Lon_Weight, y_Lat_Weight
+    
     use w_zonal_module, only: &
          & w_Initial_zonal => w_Initial, &
          & w_Finalize_zonal => w_Finalize, &       
          & xy_Lon_zonal => xy_Lon, &
-         & xy_Lat_zonal => xy_Lat
-    
+         & xy_Lat_zonal => xy_Lat, &
+         & x_Lon_Weight_zonal => x_Lon_Weight, &
+         & y_Lat_Weight_zonal => y_Lat_Weight
+
     integer, intent(in) :: iMax, jMax, nMax
-    real(DP), intent(inout), allocatable :: x_Lon(:), y_Lat(:)
+    real(DP), intent(inout), allocatable :: x_Lon(:)
+    real(DP), intent(inout), allocatable :: y_Lat(:)
+    real(DP), intent(inout), allocatable :: x_LonIntWt(:)
+    real(DP), intent(inout), allocatable :: y_LatIntWt(:)
 
     if(iMax==1) then
        call w_Initial_zonal(nMax, iMax, jMax)
@@ -165,14 +190,20 @@ contains
     end if
 
     allocate(x_Lon(iMax), y_Lat(jMax))
+    allocate(x_LonIntWt(iMax), y_LatIntWt(jMax))
 
     if(iMax==1) then
-       x_Lon(:) = xy_Lon_zonal(:,1); y_Lat(:) = xy_Lat_zonal(0,:)       
+       x_Lon(:) = xy_Lon_zonal(:,1); y_Lat(:) = xy_Lat_zonal(0,:)
+       x_LonIntWt(:) = x_Lon_Weight_zonal
+       y_LatIntWt(:) = y_Lat_Weight_zonal
        call w_Finalize_zonal()
     else
        x_Lon(:) = xy_Lon(:,1); y_Lat(:) = xy_Lat(0,:)       
+       x_LonIntWt(:) = x_Lon_Weight
+       y_LatIntWt(:) = y_Lat_Weight
        call w_Finalize()
     end if
+    
   end subroutine get_LonLatGrid
   
   subroutine check_mappingTable(gmapfilename, GNXS, GNXR)
@@ -195,3 +226,4 @@ contains
   end subroutine check_mappingTable
   
 end program gmapgen_main
+

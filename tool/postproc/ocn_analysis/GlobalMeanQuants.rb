@@ -92,14 +92,14 @@ ofile.close
 
 
 ofile = NetCDF::create(OutputNCName_SIce)
-varList = [ "IceThick", "SnowThick", "SIceCon", "SIceEn" ]
-gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn   = GPhysUtil.get_GPhysObjs(varList, Dir::pwd, "history_sice.nc")
+varList = [ "IceThick", "SnowThick", "SIceCon", "SIceEn", "Wice" ]
+gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn, gp_Wice = GPhysUtil.get_GPhysObjs(varList, Dir::pwd, "history_sice.nc")
 
 #gp_SIceEnSum = gp_SIceEn.sum("sig2")
 
 GPhys::IO.each_along_dims_write( \
-  [gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn], ofile, AxisDef::Time){ \
-  |iceThick, snowThick, siceCon, siceEn|
+  [gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn, gp_Wice], ofile, AxisDef::Time){ \
+  |iceThick, snowThick, siceCon, siceEn, wice|
 
   time = iceThick.axis("time")
   puts "time=#{time.pos.val[0]} [#{time.pos.units}] .."
@@ -117,9 +117,9 @@ GPhys::IO.each_along_dims_write( \
     GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(siceEn.sum('sig2')),          \
                               "SIceEn"  ,                                            \
                               "global mean of sea ice energy", "J/m2"),               \
-#    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSurf(siceEn),                    \
-#                              "SIceEn"  ,                                            \
-#                              "global mean of sea ice enthalpy", "J.m-2") 
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(wice),                       \
+                              "Wice"  ,                                                   \
+                              "global mean of sea ice creation and melting", "kg.m-2.s-1"),   \
   ]
 }
 ofile.close

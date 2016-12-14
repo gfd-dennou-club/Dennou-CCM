@@ -87,6 +87,8 @@ module mod_atm
 !!$  real(DP), allocatable :: xy_TmpTAvg(:,:)
 
   character(*), parameter :: module_name = 'mod_atm'
+
+  real(DP) :: TmpAvgGlobal, TmpAvgGlobalSave
   
 contains
 
@@ -447,7 +449,8 @@ contains
          & set_operation_index, &
          & set_A_to_O_coef, set_O_to_A_coef
 
-    use grid_mapping_util, only: &
+!!$    use grid_mapping_util, only: &    
+    use grid_mapping_util_jones99, only: &    
          & set_mappingTable_interpCoef
 
     use mod_common_params
@@ -525,7 +528,7 @@ contains
     
     use axesset, only: x_Lon, y_Lat
     use gridset,only: imax, jmax
-    use constants, only: RPlanet
+    use constants, only: RPlanet, LatentHeat
 
     use dcpam_main_mod, only: &
          & xy_TauXAtm, xy_TauYAtm, xy_SensAtm, xy_LatentAtm, &
@@ -554,7 +557,7 @@ contains
     ! Local variables
     !    
     integer :: p, j, m, n
-    real(DP) :: Tmpavg, TmpAvgGlobal, SurfArea
+    real(DP) :: Tmpavg, SurfArea
     integer :: ierr
     real(DP), parameter :: PI = acos(-1d0)
 
@@ -576,7 +579,12 @@ contains
     call atm_set_send_2d( a2d_SnowFall_id, xy_SnowAtm )
 
     call atm_set_send_2d( a2d_SfcAirTemp_id, xy_SurfAirTemp )
-    
+
+!!$    TmpAvgGlobal = IntLonLat_xy(xy_RainAtm + xy_SnowAtm - xy_LatentAtm/LatentHeat)/(4d0*PI)
+!!$    if(my_comp%PRC_rank==0) then
+!!$       TmpAvgGlobalSave = TmpAvgGlobalSave + TmpAvgGlobal
+!!$    end if
+
   contains
     subroutine atm_set_send_2d(varpID, send_data)
       integer, intent(in) :: varpID
@@ -653,6 +661,11 @@ contains
 !!$    end if
 
 !!$       write(*,*) "Check the unit of SfcSnow.."
+
+!!$       if(my_comp%PRC_rank==0) then
+!!$          write(*,*) "Atm: FreshWtFlxSAvg=", TmpAvgGlobalSave/6d0
+!!$       end if
+!!$       TmpAvgGlobalSave = 0d0
        
        call agcm_update_surfprop( &
             & xy_SurfTempRecv=xy_SfcTemp, xy_SurfAlbedoRecv=xy_SfcAlbedo,  & ! (in)
