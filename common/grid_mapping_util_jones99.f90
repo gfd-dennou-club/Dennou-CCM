@@ -37,6 +37,8 @@ contains
        & x_LonIntWtD, y_LatIntWtD           & ! (in)
        & )
 
+    ! 宣言文; Declareration statements
+    !          
     character(*), intent(in) :: filename
     real(DP), intent(in) :: x_LonS(:)
     real(DP), intent(in) :: y_LatS(:)
@@ -47,6 +49,9 @@ contains
     real(DP), intent(in) :: x_LonIntWtD(:)
     real(DP), intent(in) :: y_LatIntWtD(:)
 
+    ! 局所変数
+    ! Local variables
+    !                        
     integer :: imaxS, jmaxS
     integer :: IAS, ISS, IES, JAS, JSS, JES
     integer :: imaxD, jmaxD
@@ -63,7 +68,9 @@ contains
     real(DP), allocatable :: v_LatD_(:)
 
     integer :: j
-    
+
+    ! 実行文; Executable statement
+    !    
     imaxS = size(x_LonS); jmaxS = size(y_LatS)
     imaxD = size(x_LonD); jmaxD = size(y_LatD)    
     
@@ -99,7 +106,9 @@ contains
     subroutine calc_edge_coordinate( x_FI, y_FJ,         &
          & x_CI, y_CJ, x_IAXIS_Weight, y_JAXIS_Weight,   &
          & IS, IE, JS, JE )
-      
+
+      ! 宣言文; Declareration statements
+      !                
       integer, intent(in) :: IS, IE, JS, JE
       real(DP), intent(inout) :: x_FI(:)
       real(DP), intent(inout) :: y_FJ(:)
@@ -108,10 +117,16 @@ contains
       real(DP), intent(in) :: x_IAXIS_Weight(IS:IE)
       real(DP), intent(in) :: y_JAXIS_Weight(JS:JE)
 
+      ! 局所変数
+      ! Local variables
+      !                          
       integer :: i
       integer :: j
       real(DP), parameter :: PI = acos(-1d0)
 
+      ! 実行文; Executable statement
+      !
+      
       !
       do i = IS-1, IE
          x_FI(i) = 0.5d0 * (x_CI(i) + x_CI(i+1))
@@ -245,7 +260,9 @@ contains
     subroutine calc_RemappingWeight( aa_rmapWt, aa_rmapWtDLat,  & ! (out)
          & SrcRangeX, SrcRangeY, iD, jD                         & ! (in)
          & )
-      
+
+      ! 宣言文; Declareration statements
+      !                
       real(DP), intent(inout), allocatable :: aa_rmapWt(:,:)
       real(DP), intent(inout), allocatable :: aa_rmapWtDLat(:,:)
       integer, intent(in) :: SrcRangeX(2)
@@ -253,6 +270,9 @@ contains
       integer ,intent(in) :: iD
       integer ,intent(in) :: jD
 
+      ! 局所変数
+      ! Local variables
+      !                  
       integer :: i
       integer :: j
       
@@ -267,6 +287,9 @@ contains
       real(DP) :: DLon_k, DLon_n, DLon_nk
       
       real(DP) :: a_AkSegLat(0:NYS)
+
+      ! 実行文; Executable statement
+      !
       
       if(allocated(aa_rmapWt)) deallocate(aa_rmapWt)
       if(allocated(aa_rmapWtDLat)) deallocate(aa_rmapWtDLat)
@@ -341,13 +364,21 @@ contains
     subroutine search_OverwrapRange( SrcRangeX, SrcRangeY, & ! (out)
          & DistX1, DistX2, DistY1, DistY2 )
 
+      ! 宣言文; Declareration statements
+      !                      
       integer, intent(out) :: SrcRangeX(2)
       integer, intent(out) :: SrcRangeY(2)
       real(DP), intent(in) :: DistX1, DistX2, DistY1, DistY2
 
+      ! 局所変数
+      ! Local variables
+      !                    
       integer :: i
       integer :: j
 
+      ! 実行文; Executable statement
+      !
+      
       SrcRangeX(1) = -1
       SrcRangeY(2) = -1
       

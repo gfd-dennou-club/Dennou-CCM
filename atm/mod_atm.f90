@@ -84,7 +84,7 @@ module mod_atm
   integer, allocatable :: lnx_field(:)
   integer, allocatable :: lny_field(:)
   
-!!$  real(DP), allocatable :: xy_TmpTAvg(:,:)
+  real(DP), allocatable :: xy_TmpTAvg(:,:)
 
   character(*), parameter :: module_name = 'mod_atm'
 
@@ -92,6 +92,8 @@ module mod_atm
   
 contains
 
+  !----------------------------------------------------------------------------------------
+  
   subroutine atm_init()
 
     ! モジュール引用; Use statements
@@ -196,6 +198,8 @@ contains
     
   end subroutine atm_init
 
+  !----------------------------------------------------------------------------------------
+  
   subroutine atm_run(loop_flag)
 
     ! モジュール引用; Use statements
@@ -213,13 +217,15 @@ contains
     ! 局所変数
     ! Local variables
     !
-    integer, parameter :: MONITOR_STEPINT =200
+    integer, parameter :: MONITOR_STEPINT =400
     
     ! 実行文; Executable statement
     !
     
     my_comp%loop_end_flag = .false.
     my_comp%DelTime = TimeSecA - TimeSecN
+
+!!$    write(*,*) "atm: TimeLoop, TimeSecN=", TimeSecN
     
     do while(.not. my_comp%loop_end_flag)
 
@@ -239,7 +245,7 @@ contains
           
        call agcm_advance_timestep( my_comp%tstep,  & ! (in)
             & my_comp%loop_end_flag,               & ! (inout)
-!!$            & skip_flag = .false.                  & ! (in)
+!!$            & skip_flag = .true.                  & ! (in)
             & skip_flag = .false.                  & ! (in)
             & )
        
@@ -257,9 +263,12 @@ contains
        
     end do
     loop_flag = .false.
+!!$    write(*,*) "atm: TimeLoopEnd, TimeSecN=", TimeSecN
     
   end subroutine atm_run
 
+  !----------------------------------------------------------------------------------------
+  
   subroutine atm_fin()
 
     ! モジュール引用; Use statement
@@ -523,6 +532,11 @@ contains
     !                
 
     use mpi
+
+    !* gtool5
+
+    use gtool_historyauto, only: &
+         & HistoryAutoPut
     
     !* dcpam5
     
@@ -574,13 +588,14 @@ contains
     call atm_set_send_2d( a2d_LatHFlx_id, xy_LatentAtm )    
     call atm_set_send_2d( a2d_SenHFlx_id, xy_SensAtm )
     call atm_set_send_2d( a2d_DSfcHFlxDTs_id, xy_DSurfHFlxDTs )
-    
+
     call atm_set_send_2d( a2d_RainFall_id, xy_RainAtm )
     call atm_set_send_2d( a2d_SnowFall_id, xy_SnowAtm )
 
     call atm_set_send_2d( a2d_SfcAirTemp_id, xy_SurfAirTemp )
-
-!!$    TmpAvgGlobal = IntLonLat_xy(xy_RainAtm + xy_SnowAtm - xy_LatentAtm/LatentHeat)/(4d0*PI)
+    
+    TmpAvgGlobal = IntLonLat_xy(xy_RainAtm + xy_SnowAtm - xy_LatentAtm/LatentHeat)/(4d0*PI)
+    call HistoryAutoPut( TimeSecA, 'OutputWtMass', TmpAvgGlobal)
 !!$    if(my_comp%PRC_rank==0) then
 !!$       TmpAvgGlobalSave = TmpAvgGlobalSave + TmpAvgGlobal
 !!$    end if
@@ -605,7 +620,7 @@ contains
 
     ! モジュール引用; Use statement
     !                
-
+    
     !* dcpam5
 
     use gridset, only: &
@@ -614,6 +629,8 @@ contains
     use axesset,only: &
          & y_Lat
 
+    use mpi_wrapper, only: myrank
+    
     !* DCCM
     
     use jcup_interface, only: &
@@ -650,8 +667,7 @@ contains
 
     call atm_get_write( o2a_SfcSnow_id, o2d_SfcSnow,     & ! (in)
          & xy_SfcSnow )                                    ! (out)
-
-
+    
     !
     !
     if( mod(CurrentTimeSec, dble(AO_COUPLING_CYCLE_SEC)) == 0d0 ) then
@@ -660,12 +676,12 @@ contains
 !!$       write(*,*) "atm: rank=", my_rank, "SurfTemp=", xy_SurfTemp(0,1:2), "lat=", y_Lat(1:2)/acos(-1d0)*180d0
 !!$    end if
 
-!!$       write(*,*) "Check the unit of SfcSnow.."
-
 !!$       if(my_comp%PRC_rank==0) then
 !!$          write(*,*) "Atm: FreshWtFlxSAvg=", TmpAvgGlobalSave/6d0
 !!$       end if
 !!$       TmpAvgGlobalSave = 0d0
+       
+!!$       write(*,*) "Check the unit of SfcSnow.."
        
        call agcm_update_surfprop( &
             & xy_SurfTempRecv=xy_SfcTemp, xy_SurfAlbedoRecv=xy_SfcAlbedo,  & ! (in)
@@ -724,6 +740,9 @@ contains
     call HistoryAutoAddVariable('CheckVar', &
          & dims=dims_XYT, longname='CheckVar', units='1') 
 
+    call HistoryAutoAddVariable( 'OutputWtMass', &
+         & dims=(/'time'/), longname='water mass passed to ocean and sea-ice models', units='kg.m-2.s-1') 
+    
   end subroutine output_prepare
 
   subroutine output_var(CurrentTime, varname, data2d)

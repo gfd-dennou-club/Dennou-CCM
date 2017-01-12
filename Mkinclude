@@ -12,7 +12,7 @@
  GTOOL5DIR       = $(HOME)/lib/gtool5-serial
  GTOOL5NAME      = gtool5-serial
 
- SPMLDIR         = $(HOME)/lib/spml
+ SPMLDIR         = $(HOME)/lib/spml-mpi
  SPMLNAME        = spml-omp
 
  ISPACKDIR       = $(HOME)/lib/ispack

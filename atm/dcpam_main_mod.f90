@@ -391,6 +391,7 @@ module dcpam_main_mod
   !
   use output_freq_used_vars, only : OutputFreqUsedVars
 
+  use ProfUtil_mod
 
   ! 宣言文 ; Declaration statements
   !
@@ -1043,9 +1044,9 @@ contains
 !!$    xy_Tmp = 1d0
 !!$    avr_Tmp = IntLonLat_xy(xy_Rain + xy_Snow)
 !!$    avr_QMixFlx = IntLonLat_xy(xyrf_QMixFlux(:,:,0,IndexH2OVap))
-!!$    avr_QMixFlx2 = IntLonLat_xy(xy_LatentAtm)!/LatentHeat
+!!$    avr_QMixFlx2 = IntLonLat_xy(xy_LatentAtm)/LatentHeat
 !!$    if (myrank == 0) then
-!!$       write(*,*) "QMix Budget=", avr_QMixFlx * LatentHeat / (4d0*acos(-1d0))
+!!$       write(*,*) "QMix net flux=",  avr_QMixFlx / (4d0*acos(-1d0)), avr_QMixFlx2 / (4d0*acos(-1d0))
 !!$    end if
 !!$    
 !!$    avr_QMixFlx = IntLonLat_xy(xyrf_QMixFlux(:,:,0,IndexH2OVap) - xy_SurfHumidCoef*xy_SurfQVapTransCoef*( &
@@ -1090,9 +1091,11 @@ contains
     end_loop_flag = (TimeB >= EndTime)
     if(end_loop_flag) return
 
+    call ProfUtil_RapStart('TimeLoop', 0)
+    
 !    write(*,*) "ATM :advance_timestep..", tstep, TimeN
 if (.not. skip_flag) then    
-
+   
     ! 地表面高度の設定
     ! Set surface height
     !
@@ -1278,6 +1281,7 @@ if (.not. skip_flag) then
       xyr_RadLFlux     = xyr_RadLUwFlux     - xyr_RadLDwFlux
       xyra_DelRadLFlux = xyra_DelRadLUwFlux - xyra_DelRadLDwFlux
 
+      call ProfUtil_RapEnd('Rad', 1)
 
       ! 放射による温度変化率
       ! Temperature tendency with radiation
@@ -1341,6 +1345,7 @@ if (.not. skip_flag) then
         & )
 
 
+      call ProfUtil_RapStart('Rad', 1)      
       select case ( IDRadMethod )
       case ( IDRadMethodDennouAGCM )
 
@@ -1570,7 +1575,9 @@ if (.not. skip_flag) then
       xyr_RadLFlux     = xyr_RadLUwFlux     - xyr_RadLDwFlux
       xyra_DelRadLFlux = xyra_DelRadLUwFlux - xyra_DelRadLDwFlux
 
+      call ProfUtil_RapEnd('Rad', 1)
 
+      call ProfUtil_RapStart('SfcFlx', 1)      
       ! 地表面フラックス
       ! Surface flux
       !
@@ -1620,7 +1627,9 @@ if (.not. skip_flag) then
 !!$          & )
 !!$      end if
 
+      call ProfUtil_RapEnd('SfcFlx', 1)      
 
+      call ProfUtil_RapStart('VDiffMY', 1)      
       ! 鉛直拡散フラックス
       ! Vertical diffusion flux
       !
@@ -1688,8 +1697,10 @@ if (.not. skip_flag) then
       xyr_MomFluxY (:,:,0)   = xy_SurfMomFluxY
       xyr_HeatFlux (:,:,0)   = xy_SurfHeatFlux
       xyrf_QMixFlux(:,:,0,:) = xyf_SurfQMixFlux
+      call ProfUtil_RapEnd('VDiffMY', 1)
 
 
+      call ProfUtil_RapStart('PhysImplSDH', 1)      
       ! 一部の物理過程の時間変化率の計算 (陰解法)
       ! Calculate tendency by a part of physical processes (implicit)
       !
@@ -1921,6 +1932,7 @@ if (.not. skip_flag) then
         xyzf_DQMixDt(:,:,:,IndexTKE) = &
           & xyz_DTurKinEneDt
       end select
+      call ProfUtil_RapEnd('PhysImplSDH', 1)
 
 
       ! Gravity wave drag
@@ -2058,6 +2070,7 @@ if (.not. skip_flag) then
     call dcpam_StoreAtmSurfFlxInfo()
     
 
+    call ProfUtil_RapStart('Dyn', 1)    
     ! 力学過程
     ! Dynamical core
     !
@@ -2093,6 +2106,7 @@ if (.not. skip_flag) then
         & )
       xyz_OMG = 0.0_DP
     end select
+    call ProfUtil_RapEnd('Dyn', 1)
 
 
     ! 地面温度・土壌温度・土壌水分・積雪量の積分
@@ -2256,7 +2270,7 @@ if (.not. skip_flag) then
         & xyz_Height    = xyz_Height                        & ! (out) optional
         & )
 
-
+      call ProfUtil_RapStart('Cloud_Cumulus', 1)
       ! 積雲パラメタリゼーション
       ! Cumulus parameterization
       !
@@ -2400,8 +2414,10 @@ if (.not. skip_flag) then
 
 
       end select
+      call ProfUtil_RapEnd('Cloud_Cumulus', 1)
 
 
+      call ProfUtil_RapStart('Cloud_Lscond', 1)      
       ! 大規模凝結 (非対流性凝結)
       ! Large scale condensation
       !
@@ -2520,8 +2536,10 @@ if (.not. skip_flag) then
         xyz_DQH2OSolDtLSC = 0.0_DP
 
       end select
+      call ProfUtil_RapEnd('Cloud_Lscond', 1)
 
 
+      call ProfUtil_RapStart('Cloud_clmodel', 1)            
       ! 
       ! Cloud model
       !
@@ -2685,6 +2703,7 @@ if (.not. skip_flag) then
       ! Sum of cumulus and non-convective (large scale) condensation
       xy_Rain = xy_RainCumulus + xy_RainLsc
       xy_Snow = xy_SnowCumulus + xy_SnowLsc
+      call ProfUtil_RapEnd('Cloud_clmodel', 1)      
 
 
       select case ( IDSfcMoistMethod )
@@ -2784,6 +2803,7 @@ if (.not. skip_flag) then
 !!$      end select
 !!$    end if
 
+    call ProfUtil_RapStart('TimeAdvance', 1)    
     ! 時間フィルター (Williams, 2009)
     ! Time filter (Williams, 2009)
     !
@@ -2908,6 +2928,7 @@ if (.not. skip_flag) then
       xy_SurfSnowN  = xy_SurfSnowA
       xy_SurfSnowA  = 0.0_DP
     end select
+    call ProfUtil_RapEnd('TimeAdvance', 1)    
 
 endif ! end if for skip_flag
  
@@ -2951,6 +2972,8 @@ endif ! end if for skip_flag
   !
   !end do loop_time
 
+    call ProfUtil_RapEnd('TimeLoop', 0)
+    
   end subroutine dcpam_advance_timestep
 
   !-------------------------------------------------------------------
@@ -3892,6 +3915,8 @@ endif ! end if for skip_flag
     ! Initialization of modules used in this module
     !
 
+    call ProfUtil_Init( namelist_filename )    
+    call ProfUtil_RapStart('Setup', 0)
 
     ! 時刻管理
     ! Time control
@@ -5110,6 +5135,7 @@ endif ! end if for skip_flag
     !
     ! End of initialization
     !
+    call ProfUtil_RapEnd('Setup', 0)
 
 
     ! 初回だけはオイラー法を用いるため, Δt を半分に
@@ -5188,13 +5214,19 @@ endif ! end if for skip_flag
     !
     use history_file_io, only: HistoryFileClose
 
+    use dc_string, only: CPrintf
+    use mpi_wrapper, only: myrank
+    
     ! 宣言文 ; Declaration statements
     !
     implicit none
 
+    character(STRING) :: profileName
+    
     ! 実行文 ; Executable statement
     !
 
+    call ProfUtil_RapStart('Shutdown', 0)    
     ! リスタートデータファイルクローズ
     ! Close restart data file
     !
@@ -5401,6 +5433,12 @@ endif ! end if for skip_flag
     !
     call TimesetClose
 
+    call ProfUtil_RapEnd('Shutdown', 0)
+
+    ProfileName = CPrintf("dcpam_rank%06d.prof", i=(/myrank/))
+    call ProfUtil_RapReport(ProfileName)
+    call ProfUtil_Final()
+    
     ! Finalize MPI
     !
     call MPIWrapperFinalize

@@ -48,8 +48,7 @@ module mod_ocn
        & JSO => JS, JEO => JE, JMO => JM,   &
        & KSO => KS, KEO => KE, KMO => KM,   &
        & IAO => IA, JAO => JA, KAO => KA
-  
-  
+    
   !* DCPCM
 
   use component_field, only: &
@@ -74,6 +73,11 @@ module mod_ocn
        & GMAPFILENAME_AO,           &
        & GMAPFILENAME_OA,           &
        & AO_COUPLING_CYCLE_SEC
+
+  use ProfUtil_mod, only: &
+       & ProfUtil_Init, ProfUtil_Final,        &
+       & ProfUtil_RapStart, ProfUtil_RapEnd,   &
+       & ProfUtil_RapReport
   
   ! 宣言文; Declareration statements
   !    
@@ -160,7 +164,10 @@ contains
     call OptionParser_Init()
     call OptionParser_GetInfo( configNmlFile )
     call OptionParser_Final()
-        
+
+    call ProfUtil_Init( configNmlFile )
+    call ProfUtil_RapStart('Setup', 0) 
+    
     call ogcm_setup( configNmlFile )
     call sice_setup( configNmlFile )
 
@@ -239,6 +246,7 @@ contains
     my_comp%tstep = 1
 
     call MessageNotify( 'M', module_name, "ocn_init has been finished.")
+    call ProfUtil_RapEnd('Setup', 0) 
     
   end subroutine ocn_init
 
@@ -246,11 +254,17 @@ contains
 
     ! モジュール引用; Use statements
     !    
-    use jcup_interface, only: &
-         & jcup_set_time, jcup_inc_time, jcup_inc_calendar
 
     !* DCPAM
 
+    use jcup_interface, only: &
+         & jcup_set_time, jcup_inc_time, jcup_inc_calendar
+
+    ! Dennou-OGCM
+    
+    use DOGCM_Exp_driver_mod, only: &
+         & DOGCM_Exp_driver_Do
+    
     use DOGCM_Admin_Variable_mod
     
     ! 宣言文; Declareration statements
@@ -260,11 +274,12 @@ contains
     ! 局所変数
     ! Local variables
     !
-    integer, parameter :: MONITOR_STEPINT = 100
+    integer, parameter :: MONITOR_STEPINT = 200
 
     ! 実行文; Executable statement
     !
-    
+
+!!$    write(*,*) "ocn: TimeLoop, TimeSecN=", TimeSecN
     my_comp%loop_end_flag = .false.
     my_comp%DelTime = TimeSecA - TimeSecN
     
@@ -284,25 +299,30 @@ contains
                & )
        end if
 
-
+       call ProfUtil_RapStart('TimeLoop', 0) 
        ! Advance sea-ice component
        call sice_advance_timestep( my_comp%tstep,  & ! (in)
             & my_comp%loop_end_flag,               & ! (out)
             & skip_flag = .false.                  & ! (in)
+!!$            & skip_flag = .true.                  & ! (in)
             & )
        call pass_field_sice2ocn()
-!!$!       write(*,*) "<- SIce -----------------]"
-!!$       
+!!$       write(*,*) "<- SIce -----------------]"
+
        !- Advance ocean component
        call ogcm_advance_timestep( my_comp%tstep,  & ! (in)
             & my_comp%loop_end_flag,               & ! (out)
             & skip_flag = .false.                  & ! (in)
+!!$            & skip_flag = .true.                  & ! (in)
             & )
        call pass_field_ocn2sice()
-!       write(*,*) "<- Ocn -----------------]"
+!!$       write(*,*) "<- Ocn -----------------]"
        
-
+       !* Call a subroutine defined by users.
+       call DOGCM_Exp_driver_Do()
+       
        !-----------------------------------------------------
+       call ProfUtil_RapEnd('TimeLoop', 0) 
        
 !!$       write(*,*) "-> COUPLER Put: ocn my_rank=", my_comp%PRC_rank
        call set_and_put_data( TimeSecN ) ! (in)
@@ -315,7 +335,8 @@ contains
        
     end do
     loop_flag = .false.
-    
+!!$    write(*,*) "ocn: TimeLoopEnd, TimeSecN=", TimeSecN
+
   end subroutine ocn_run
   
   subroutine ocn_fin()
@@ -328,6 +349,8 @@ contains
     ! 実行文; Executable statement
     !
 
+    call ProfUtil_RapStart('Shutdown', 0)
+    
     call jcup_coupling_end(my_comp%InitTimeInfo, .false.)
 
     !------------------------
@@ -335,9 +358,14 @@ contains
     call sice_shutdown()
     call ogcm_shutdown()
     !-------------------------
+
+    call ProfUtil_RapEnd('Shutdown', 0)
+    call ProfUtil_RapReport()
+    call ProfUtil_Final()
     
     call MessageNotify( 'M', module_name, "ocn_fin has been finished. (rank=%d)", &
          & i=(/ my_comp%PRC_rank  /) )
+
     
   end subroutine ocn_fin
 
@@ -730,11 +758,11 @@ contains
           end if
        end do
     end do
-    
+
     call ocn_set_send_2d( o2a_SfcTemp_id, xy_SfcTemp4Atm(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( o2a_SfcAlbedo_id, xy_SfcAlbedo4Atm(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( o2a_SfcSnow_id, xy_SfcSnow4Atm(ISO:IEO,JSO:JEO) )
-    
+
   contains
     subroutine ocn_set_send_2d(varpID, send_data)
       integer, intent(in) :: varpID
@@ -785,6 +813,9 @@ contains
 
     use DSIce_Admin_Constants_mod, only: &
          & DensFreshWater, LFreeze
+
+    use DOGCM_Admin_TInteg_mod, only: &
+         & DelTime
     
     use DSIce_Boundary_vars_mod, only: &
          & xy_WindStressXAI => xy_WindStressUAI,            &
@@ -792,6 +823,9 @@ contains
          & xy_SDwRFlx, xy_LDwRFlx, xy_LatHFlx, xy_SenHFlx,  &
          & xy_DSfcHFlxAIDTs,                                &
          & xy_RainFall, xy_SnowFall, xy_Evap, xy_DLatSenHFlxDTs
+
+    use DOGCM_IO_History_mod, only: &
+         & DOGCM_IO_History_HistPut
     
     ! 宣言文; Declareration statements
     !            
@@ -813,45 +847,63 @@ contains
     ! Get oceanic surface temerature send by OGCM.
     !
 
-    call ocn_get_write( a2o_WindStressX_id, "a2o_WindStressX", & ! (in)
-         & xy_WindStressXAO )                                    ! (out)
+    if( my_comp%tstep > 1 ) then
+       
+       call ocn_get_write( a2o_WindStressX_id, "a2o_WindStressX", & ! (in)
+            & xy_WindStressXAO )                                    ! (out)
 
-    call ocn_get_write( a2o_WindStressY_id, "a2o_WindStressY", & ! (in)
-         & xy_WindStressYAO )                                    ! (out)
+       call ocn_get_write( a2o_WindStressY_id, "a2o_WindStressY", & ! (in)
+            & xy_WindStressYAO )                                    ! (out)
 
-    call ocn_get_write( a2o_LDwRFlx_id, "a2o_LDwRFlx",         & ! (in)
-         & xy_LDwRFlx )                                          ! (in)
+       call ocn_get_write( a2o_LDwRFlx_id, "a2o_LDwRFlx",         & ! (in)
+            & xy_LDwRFlx )                                          ! (in)
 
-    call ocn_get_write( a2o_SDwRFlx_id, "a2o_SDwRFlx",         & ! (in)
-         & xy_SDwRFlx )                                          ! (in)
+       call ocn_get_write( a2o_SDwRFlx_id, "a2o_SDwRFlx",         & ! (in)
+            & xy_SDwRFlx )                                          ! (in)
 
-    call ocn_get_write( a2o_LUwRFlx_id, "a2o_LUwRFlx",         & ! (in)
-         & xy_LUwRFlx )                                          ! (in)
+       call ocn_get_write( a2o_LUwRFlx_id, "a2o_LUwRFlx",         & ! (in)
+            & xy_LUwRFlx )                                          ! (in)
 
-    call ocn_get_write( a2o_SUwRFlx_id, "a2o_SUwRFlx",         & ! (in)
-         & xy_SUwRFlx )                                          ! (in)
+       call ocn_get_write( a2o_SUwRFlx_id, "a2o_SUwRFlx",         & ! (in)
+            & xy_SUwRFlx )                                          ! (in)
 
-    call ocn_get_write( a2o_LatHFlx_id, "a2o_LatHFlx",         & ! (in)
-         & xy_LatHFlx )                                          ! (in)
+       call ocn_get_write( a2o_LatHFlx_id, "a2o_LatHFlx",         & ! (in)
+            & xy_LatHFlx )                                          ! (in)
 
-    call ocn_get_write( a2o_SenHFlx_id, "a2o_SenHFlx",         & ! (in)
-         & xy_SenHFlx )                                          ! (in)         
+       call ocn_get_write( a2o_SenHFlx_id, "a2o_SenHFlx",         & ! (in)
+            & xy_SenHFlx )                                          ! (in)         
 
-    call ocn_get_write( a2o_DSfcHFlxDTs_id, "a2o_DSfcHFlxDTs", & ! (in)
-         & xy_DSfcHFlxDTs )                                      ! (in)         
+       call ocn_get_write( a2o_DSfcHFlxDTs_id, "a2o_DSfcHFlxDTs", & ! (in)
+            & xy_DSfcHFlxDTs )                                      ! (in)         
 
-    call ocn_get_write( a2o_RainFall_id, "a2o_RainFall",       & ! (in)
-         & xy_RainFall )                                         ! (in)         
+       call ocn_get_write( a2o_RainFall_id, "a2o_RainFall",       & ! (in)
+            & xy_RainFall )                                         ! (in)         
 
-    call ocn_get_write( a2o_SnowFall_id, "a2o_SnowFall",       & ! (in)
-         & xy_SnowFall )                                         ! (in)         
+       call ocn_get_write( a2o_SnowFall_id, "a2o_SnowFall",       & ! (in)
+            & xy_SnowFall )                                         ! (in)         
 
-    call ocn_get_write( a2o_SfcAirTemp_id, "a2o_SfcAirTemp",   & ! (in)
-         & xy_SfcAirTemp )                                       ! (in)         
+       call ocn_get_write( a2o_SfcAirTemp_id, "a2o_SfcAirTemp",   & ! (in)
+            & xy_SfcAirTemp )                                       ! (in)         
+    end if
 
+!!$    write(*,*) "ocn: tstep=", my_comp%tstep
+    call output_var( CurrentTimeSec, 'a2o_WindStressX', xy_WindStressXAO )
+    call output_var( CurrentTimeSec, 'a2o_WindStressY', xy_WindStressYAO )
+    call output_var( CurrentTimeSec, 'a2o_LDwRFlx', xy_LDwRFlx )
+    call output_var( CurrentTimeSec, 'a2o_SDwRFlx', xy_SDwRFlx )
+    call output_var( CurrentTimeSec, 'a2o_LUwRFlx', xy_LUwRFlx )
+    call output_var( CurrentTimeSec, 'a2o_SUwRFlx', xy_SUwRFlx )
+    call output_var( CurrentTimeSec, 'a2o_LatHFlx', xy_LatHFlx )
+    call output_var( CurrentTimeSec, 'a2o_SenHFlx', xy_SenHFlx )
+    call output_var( CurrentTimeSec, 'a2o_DSfcHFlxDTs', xy_DSfcHFlxDTs )
+    call output_var( CurrentTimeSec, 'a2o_RainFall', xy_RainFall )
+    call output_var( CurrentTimeSec, 'a2o_SnowFall', xy_SnowFall )
+    call output_var( CurrentTimeSec, 'a2o_SfcAirTemp', xy_SfcAirTemp )
+
+    
     !------------------------------------------------------------------
     
-    !$omp parallel do private(i)
+    !$omp parallel do collapse(2)
     do j = JSO, JEO
        do i = ISO, IEO
 
@@ -876,9 +928,7 @@ contains
        end do
     end do
 
-!!$    if( mod(CurrentTimeSec, dble(AO_COUPLING_CYCLE_SEC)) == 0d0 ) then
-!!$       write(*,*) "Ocn: FreshWtFlxAIO=", AvrLonLat_xy(xy_FreshWtFlxS0(ISO:IEO,JSO:JEO))*1d3
-!!$    end if
+    call DOGCM_IO_History_HistPut( 'a2o_InputMass', AvrLonLat_xy(xy_FreshWtFlxS0(ISO:IEO,JSO:JEO))*1d3)
 
   contains
     subroutine ocn_get_write(vargID, vargName, xy_getdata)
@@ -892,8 +942,6 @@ contains
       if( mod(CurrentTimeSec, dble(AO_COUPLING_CYCLE_SEC)) == 0d0 ) then      
          field%recv_2d(:,:) = unpack(field%buffer1d, field%mask2d, field%recv_2d)      
          xy_getdata(ISO:IEO,JSO:JEO) = field%recv_2d
-                 
-         call output_var( CurrentTimeSec, vargName, xy_getdata )
       end if
       
     end subroutine ocn_get_write
@@ -934,6 +982,8 @@ contains
     call DOGCM_IO_History_RegistVar( 'a2o_Evap', 'IJT', 'Evarporation', 'm/s')
 
     call DOGCM_IO_History_RegistVar( 'a2o_SfcAirTemp', 'IJT', 'Surface air temperature', 'K')
+
+    call DOGCM_IO_History_RegistVar( 'a2o_InputMass', 'T', 'input mass to ocean and sea-ice models', 'kg.m-2.s-1' )
     
   end subroutine output_prepare
 

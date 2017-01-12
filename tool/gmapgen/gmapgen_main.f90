@@ -1,7 +1,7 @@
 !-------------------------------------------------------------
 ! Copyright (c) 2016-2016 Kawai Yuta. All rights reserved.
 !-------------------------------------------------------------
-!> @brief a template module
+!> @brief Main program to generate a data file providing the grid-remapping information. 
 !! 
 !! @author Kawai Yuta
 !!
@@ -94,14 +94,17 @@ program gmapgen_main
 contains
   subroutine read_config()
 
-    ! 宣言文; Declaration statement
-    !
 
+    ! モジュール引用; Use statements
+    !          
     use dc_iounit, only: FileOpen
     use dc_types, only: STDOUT
     
     use optionparser_mod
 
+    ! 宣言文; Declaration statement
+    !
+    
     ! 局所変数
     ! Local variables
     !    
@@ -164,6 +167,8 @@ contains
        & x_Lon, y_Lat, x_LonIntWt, y_LatIntWt, &  ! (inout)
        & iMax, jMax, nMax )                       ! (in)
 
+    ! モジュール引用; Use statements
+    !      
     use w_module, only: &
          & w_Initial, w_Finalize,     &
          & xy_Lon, xy_Lat,            &
@@ -177,12 +182,17 @@ contains
          & x_Lon_Weight_zonal => x_Lon_Weight, &
          & y_Lat_Weight_zonal => y_Lat_Weight
 
+    ! 宣言文; Declaration statement
+    !    
     integer, intent(in) :: iMax, jMax, nMax
     real(DP), intent(inout), allocatable :: x_Lon(:)
     real(DP), intent(inout), allocatable :: y_Lat(:)
     real(DP), intent(inout), allocatable :: x_LonIntWt(:)
     real(DP), intent(inout), allocatable :: y_LatIntWt(:)
 
+    ! 実行文; Executable statement
+    !
+    
     if(iMax==1) then
        call w_Initial_zonal(nMax, iMax, jMax)
     else
@@ -207,14 +217,22 @@ contains
   end subroutine get_LonLatGrid
   
   subroutine check_mappingTable(gmapfilename, GNXS, GNXR)
+
+    ! モジュール引用; Use statements
+    !          
     use grid_mapping_util, only: set_mappingTable_interpCoef
-    
+
+    ! 宣言文; Declaration statement
+    !    
     character(*), intent(in) :: gmapfilename
     integer, intent(in) :: GNXS, GNXR
 
     integer, allocatable, dimension(:) :: send_index, recv_index
     real(DP), allocatable, dimension(:) :: coef
 
+    ! 実行文; Executable statement
+    !
+    
     call set_mappingTable_interpCoef( gmapfilename, GNXS, GNXR, &
          & send_index, recv_index, coef )
 
