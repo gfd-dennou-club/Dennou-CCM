@@ -16,11 +16,11 @@ program gmapgen_main
   use dc_message, only: &
        & MessageNotify
   
-!!$  use grid_mapping_util, only: &
-!!$       & gen_gridmapfile_lonlat2lonlat
+  use grid_mapping_util, only: &
+       & gen_gridmapfile_lonlat2lonlat
 
   use grid_mapping_util_jones99, only: &
-       & gen_gridmapfile_lonlat2lonlat
+       & gen_gridmapfile_lonlat2lonlat_j99 => gen_gridmapfile_lonlat2lonlat
 
   ! 宣言文 ; Declaration statements  
   !  
@@ -47,6 +47,7 @@ program gmapgen_main
   
   character(*), parameter :: PROGRAM_NAME = "gmapgen_main"
 
+  logical :: ConservativeFlag
   
   ! 実行文; Executable statements
   !
@@ -69,23 +70,24 @@ program gmapgen_main
 !!$  write(*,*) "*Lon=", x_LonO
 !!$  write(*,*) "*Lat=", y_LatO
 
-!!$  !
-!!$  !
-!!$  call gen_gridmapfile_lonlat2lonlat( gmapfile_AO_NAME, &
-!!$       & x_LonA, y_LatA, x_LonO, y_LatO )
-!!$
-!!$  call gen_gridmapfile_lonlat2lonlat( gmapfile_OA_NAME, &
-!!$       & x_LonO, y_LatO, x_LonA, y_LatA ) 
   !
   !
-  call gen_gridmapfile_lonlat2lonlat( gmapfile_AO_NAME,          &
-       & x_LonA, y_LatA, x_LonO, y_LatO,                         &
-       & x_IntWtLonA, y_IntWtLatA, x_IntWtLonO, y_IntWtLatO )
-  
-  call gen_gridmapfile_lonlat2lonlat( gmapfile_OA_NAME,          &
-       & x_LonO, y_LatO, x_LonA, y_LatA,                         &
-       & x_IntWtLonO, y_IntWtLatO, x_IntWtLonA, y_IntWtLatA)
+  if (.not. ConservativeFlag) then
+     call gen_gridmapfile_lonlat2lonlat( gmapfile_AO_NAME, &
+          & x_LonA, y_LatA, x_LonO, y_LatO )
 
+     call gen_gridmapfile_lonlat2lonlat( gmapfile_OA_NAME, &
+          & x_LonO, y_LatO, x_LonA, y_LatA ) 
+  else
+     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_AO_NAME,  &
+          & x_LonA, y_LatA, x_LonO, y_LatO,                     &
+          & x_IntWtLonA, y_IntWtLatA, x_IntWtLonO, y_IntWtLatO )
+  
+     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_OA_NAME,  &
+          & x_LonO, y_LatO, x_LonA, y_LatA,                     &
+          & x_IntWtLonO, y_IntWtLatO, x_IntWtLonA, y_IntWtLatA)
+  end if
+  
   ! Output some information about grid mapping table
   !
   call check_mappingTable( gmapfile_AO_NAME, IMA, IMO )
@@ -114,7 +116,8 @@ contains
 
     NAMELIST /PARAM_GMAPGEN/     &
          & gmapfile_AO_NAME,     &
-         & gmapfile_OA_NAME
+         & gmapfile_OA_NAME,     &
+         & ConservativeFlag
 
 
     integer :: unit_nml
@@ -136,6 +139,8 @@ contains
     JMO = 32
     KMO = 26
     NMO = 21
+
+    ConservativeFlag = .false.
     
     ! NAMELIST からの入力
     ! Input from NAMELIST
@@ -158,8 +163,9 @@ contains
 
     call MessageNotify( 'M', PROGRAM_NAME, "ATM: (IM, JM, KM)=(%d,%d,%d)", i=(/ IMA, JMA, KMA /) )
     call MessageNotify( 'M', PROGRAM_NAME, "OCN: (IM, JM, KM)=(%d,%d,%d)", i=(/ IMO, JMO, KMO /) )
-    call MessageNotify( 'M', PROGRAM_NAME, "gmapfile_OA =%a             ", ca=(/ gmapfile_OA_NAME /) )
-    call MessageNotify( 'M', PROGRAM_NAME, "gmapfile_AO =%a             ", ca=(/ gmapfile_AO_NAME /) )
+    call MessageNotify( 'M', PROGRAM_NAME, "gmapfile_OA      =%a        ", ca=(/ gmapfile_OA_NAME /) )
+    call MessageNotify( 'M', PROGRAM_NAME, "gmapfile_AO      =%a        ", ca=(/ gmapfile_AO_NAME /) )
+    call MessageNotify( 'M', PROGRAM_NAME, "conservativeFlag =%b        ", L=(/ ConservativeFlag /) )
     
   end subroutine read_config
   

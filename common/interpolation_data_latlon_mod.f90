@@ -62,25 +62,27 @@ module interpolation_data_latlon_mod
   integer, private :: my_model
 
   type operation_index_type
-    integer :: num_of_operation  ! num of my interpolation operation
-    integer, pointer :: my_operation_index(:)   ! index of my operation 
-    integer, pointer :: send_data_index(:) ! local send data index of each operation
-    integer, pointer :: recv_data_index(:) ! local recv data index of each operation
-    integer, pointer :: recv_coef_index(:) ! local recv coef index of each operation
-    integer, pointer :: send_coef_index(:) ! local send coef index of each operation
+     integer :: num_of_operation  ! num of my interpolation operation
+     integer, pointer :: my_operation_index(:)   ! index of my operation 
+     integer, pointer :: send_data_index(:) ! local send data index of each operation
+     integer, pointer :: recv_data_index(:) ! local recv data index of each operation
+     integer, pointer :: recv_coef_index(:) ! local recv coef index of each operation
+     integer, pointer :: send_coef_index(:) ! local send coef index of each operation
 
-    integer :: num_of_recv_coef ! array size of my local recv coef
-    integer :: num_of_send_coef ! array size of my local send coef
-    integer, pointer :: global_recv_coef_index(:)      ! global index of local recv coef array
-    integer, pointer :: global_send_coef_index(:)      ! global index of local send coef array
-    integer :: send_model_id
-    integer :: index_tag
-  end type
-
+     integer :: num_of_recv_coef ! array size of my local recv coef
+     integer :: num_of_send_coef ! array size of my local send coef
+     integer, pointer :: global_recv_coef_index(:)      ! global index of local recv coef array
+     integer, pointer :: global_send_coef_index(:)      ! global index of local send coef array
+     integer :: send_model_id
+     integer :: index_tag
+     
+     real(DP), pointer :: coefS(:)
+  end type operation_index_type
+  
   type(operation_index_type), pointer :: operation_index(:,:,:)
   type(operation_index_type), pointer :: coi ! current operation index
 
-  real(DP), allocatable :: coefS(:)
+!!$  real(DP), allocatable :: coefS(:)
 
 contains
 
@@ -168,7 +170,7 @@ subroutine set_A_to_O_coef(mapping_tag, coefS_global)
 
   if(my_comp_name == OCN) then
 
-     allocate(coefS(coi%num_of_operation))
+     allocate(coi%coefS(coi%num_of_operation))
      write(*,*) "OCN rank=", my_rank, "nOperation=", coi%num_of_operation, &
           & size(coi%send_data_index), size(coi%recv_data_index), &
           & coi%num_of_send_coef, coi%num_of_recv_coef, &
@@ -177,7 +179,7 @@ subroutine set_A_to_O_coef(mapping_tag, coefS_global)
      write(*,*) "call get_operation_index: nIndex=", num_of_index, "nLcCoefIndex=", &
           & size(local_coef_index)
      
-     call jcup_recv_coef(OCN, ATM, mapping_tag, coefS, OPERATION_COEF)
+     call jcup_recv_coef(OCN, ATM, mapping_tag, coi%coefS, OPERATION_COEF)
   else if(my_comp_name == ATM .and. my_rank==0) then
      if(.not. present(coefS_global)) &
           & call jcup_error("set_A_to_O_coef", "NO coefS")
@@ -204,9 +206,9 @@ subroutine set_O_to_A_coef(mapping_tag, coefS_global)
   coi => operation_index(jcup_get_comp_num_from_name(ATM), jcup_get_comp_num_from_name(OCN), mapping_tag)
 
   if(my_comp_name == ATM) then
-     allocate(coefS(coi%num_of_operation))
+     allocate(coi%coefS(coi%num_of_operation))
 
-     call jcup_set_local_coef(ATM, OCN, mapping_tag, coefS_global, coefS, OPERATION_COEF)
+     call jcup_set_local_coef(ATM, OCN, mapping_tag, coefS_global, coi%coefS, OPERATION_COEF)
 
   end if
 end subroutine set_O_to_A_coef
@@ -228,12 +230,10 @@ subroutine interpolate_data_latlon(recv_model, send_model, send_data, &
 
   integer :: my_comm, my_group, my_size, my_rank
 
-
     coi => operation_index(jcup_get_comp_num_from_name(recv_model), jcup_get_comp_num_from_name(send_model),grid_num)
     !write(0,*) "interpolation data test ", send_model, recv_model, grid_num, num_of_data, &
     !            size(operation_index(recv_model, send_model, grid_num)%send_data_index), & 
     !            send_data(1,1), send_data(2,1)
-
     recv_data(:,:) = 0d0
 
     do d = 1, num_of_data
@@ -241,7 +241,7 @@ subroutine interpolate_data_latlon(recv_model, send_model, send_data, &
         send_point = coi%send_data_index(i)
         recv_point = coi%recv_data_index(i) 
         recv_data(recv_point,d) = recv_data(recv_point,d) &
-             & + send_data(send_point,d)*CoefS(i)
+             & + send_data(send_point,d) * coi%CoefS(i)
       end do
     end do
 

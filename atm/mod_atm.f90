@@ -42,12 +42,13 @@ module mod_atm
   
 
   use mod_common_params, only: &
-       & DEFAULT_DCCM_CONFNAME,     &
-       & NUM_DCCM_COMP,             &
-       & NUM_ATM_GMAPTAG,           &
-       & COMPNAME_ATM, GN25,        &
-       & ATM_GRID_2D, OCN_GRID_2D,  &
-       & GMAPTAG_ATM2D_OCN2D
+       & DEFAULT_DCCM_CONFNAME,      &
+       & NUM_DCCM_COMP,              &
+       & NUM_ATM_GMAPTAG,            &
+       & COMPNAME_ATM, GN25,         &
+       & ATM_GRID_2D, OCN_GRID_2D,   &
+       & GMAPTAG_ATM2D_OCN2D,        &
+       & GMAPTAG_ATM2D_OCN2D_CONSERVE
        
   use mod_common_compdef, only:     &
        & ComponentDef_Init, ComponentDef_Final, &
@@ -58,6 +59,8 @@ module mod_atm
        & sice_comp => CompDef_sice,             &
        & GMAPFILENAME_AO,                       &
        & GMAPFILENAME_OA,                       &
+       & GMAPFILENAME_AO_CONSERVE,              &
+       & GMAPFILENAME_OA_CONSERVE,              &
        & AO_COUPLING_CYCLE_SEC
   
   ! 宣言文; Declareration statements
@@ -386,7 +389,7 @@ contains
     ! 局所変数
     ! Local variables
     !
-    
+
     ! 実行文; Executable statement
     !
 
@@ -419,18 +422,17 @@ contains
     
     !- Variable getten from  other components
 
-    call jcup_def_varg( field%varg(o2a_SfcTemp_id)%varg_ptr, my_comp%name, 'o2a_SfcTemp', ATM_GRID_2D, 1,   & ! (in)
-         & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcTemp,                                       & ! (in)
-         & RECV_MODE="SNP", INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=1, EXCHANGE_TAG=1)       ! (in)
+    call jcup_def_varg( field%varg(o2a_SfcTemp_id)%varg_ptr, my_comp%name, 'o2a_SfcTemp', ATM_GRID_2D, 1,     & ! (in)
+         & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcTemp, RECV_MODE="SNP",                        & ! (in)
+         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D, EXCHANGE_TAG=1)        ! (in)
 
-    call jcup_def_varg( field%varg(o2a_SfcAlbedo_id)%varg_ptr, my_comp%name, 'o2a_SfcAlbedo', ATM_GRID_2D, 1,  & ! (in)
-         & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcAlbedo,                                        & ! (in)
-         & RECV_MODE="SNP", INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=1, EXCHANGE_TAG=1)          ! (in)
+    call jcup_def_varg( field%varg(o2a_SfcAlbedo_id)%varg_ptr, my_comp%name, 'o2a_SfcAlbedo', ATM_GRID_2D, 1, & ! (in)
+         & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcAlbedo, RECV_MODE="SNP",                      & ! (in)
+         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D, EXCHANGE_TAG=1)        ! (in)
 
-    call jcup_def_varg(field%varg(o2a_SfcSnow_id)%varg_ptr, my_comp%name, 'o2a_SfcSnow', ATM_GRID_2D, 1,       & ! (in)
-         & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcSnow,                                          & ! (in)
-         & RECV_MODE="SNP", INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=1, EXCHANGE_TAG=1)          ! (in)
-
+    call jcup_def_varg(field%varg(o2a_SfcSnow_id)%varg_ptr, my_comp%name, 'o2a_SfcSnow', ATM_GRID_2D, 1,      & ! (in)
+         & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcSnow, RECV_MODE="SNP",                        & ! (in)
+         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D, EXCHANGE_TAG=1)        ! (in)
 
     !- Finish defining variables for jup ---------------------
     
@@ -458,9 +460,11 @@ contains
          & set_operation_index, &
          & set_A_to_O_coef, set_O_to_A_coef
 
-!!$    use grid_mapping_util, only: &    
-    use grid_mapping_util_jones99, only: &    
+    use grid_mapping_util, only: &
          & set_mappingTable_interpCoef
+    
+    use grid_mapping_util_jones99, only: &    
+         & set_mappingTable_interpCoef_j99 =>  set_mappingTable_interpCoef
 
     use mod_common_params
     
@@ -473,6 +477,8 @@ contains
     integer, allocatable :: recv_grid_oa(:)
     real(DP), allocatable :: coefS_ao_global(:)
     real(DP), allocatable :: coefS_oa_global(:)
+    real(DP), allocatable :: coefS_ao_global_conserve(:)
+    real(DP), allocatable :: coefS_oa_global_conserve(:)
     
     ! 実行文; Executable statement
     !
@@ -481,46 +487,104 @@ contains
     call init_interpolation(NUM_DCCM_COMP, NUM_ATM_GMAPTAG, my_comp%id)
 
     
-    ! ATM -> OCN grid mapping    **************************x
+    !* ATM -> OCN grid mapping    **************************
+    !
+
+    call MessageNotify( 'M', module_name, "Read the coefficients (ATM -> OCN) of bilinear interpolation.")    
+
     if(my_comp%PRC_rank==0) then
        call set_mappingTable_interpCoef( &
-            & GMAPFILENAME_AO, my_comp%GNX, ocn_comp%GNX,          & ! (in)
-            & send_grid_ao, recv_grid_ao, coefS_ao_global          & ! (inout)
+            & GMAPFILENAME_AO, my_comp%GNX, ocn_comp%GNX,             & ! (in)
+            & send_grid_ao, recv_grid_ao, coefS_ao_global             & ! (inout)
             & )
-       write(*,*) "A2O:", size(send_grid_ao), size(recv_grid_ao), size(coefS_ao_global)
+!      write(*,*) "A2O:", size(send_grid_ao), size(recv_grid_ao), size(coefS_ao_global)
     end if
-    call jcup_set_mapping_table( my_comp%name,                       & ! (in)
-         & my_comp%name, ATM_GRID_2D, ocn_comp%name, OCN_GRID_2D,    & ! (in) ATM_GRID_2D -> OCN_GRID_2D
-         & GMAPTAG_ATM2D_OCN2D, send_grid_ao, recv_grid_ao )           ! (in)
+    call jcup_set_mapping_table( my_comp%name,                        & ! (in)
+         & my_comp%name, ATM_GRID_2D, ocn_comp%name, OCN_GRID_2D,     & ! (in) ATM_GRID_2D -> OCN_GRID_2D
+         & GMAPTAG_ATM2D_OCN2D, send_grid_ao, recv_grid_ao )            ! (in)
+    if(my_comp%PRC_rank==0) deallocate( send_grid_ao, recv_grid_ao )
 
-    ! OCN -> ATM grid mapping   *****************************    
+    call MessageNotify( 'M', module_name, "Read the coefficients (ATM -> OCN) of conservative bilinear interpolation.")    
+
+    if(my_comp%PRC_rank==0) then    
+       call set_mappingTable_interpCoef_j99( &
+            & GMAPFILENAME_AO_CONSERVE, my_comp%GNX, ocn_comp%GNX,    & ! (in)
+            & send_grid_ao, recv_grid_ao, coefS_ao_global_conserve    & ! (inout)
+            & )
+!       write(*,*) "A2O:", size(send_grid_ao), size(recv_grid_ao), size(coefS_ao_global_conserve)
+    end if
+    call jcup_set_mapping_table( my_comp%name,                        & ! (in)
+         & my_comp%name, ATM_GRID_2D, ocn_comp%name, OCN_GRID_2D,     & ! (in) ATM_GRID_2D -> OCN_GRID_2D
+         & GMAPTAG_ATM2D_OCN2D_CONSERVE, send_grid_ao, recv_grid_ao )   ! (in)
+
+    !* OCN -> ATM grid mapping   *****************************    
+    !
+
+    call MessageNotify( 'M', module_name, "Read the coefficients (OCN -> ATM) of bilinear interpolation.")    
+
     if(my_comp%PRC_rank==0) then
        call set_mappingTable_interpCoef( &
-            & GMAPFILENAME_OA, ocn_comp%GNX, my_comp%GNX,      & ! (in)
-            & send_grid_oa, recv_grid_oa, coefS_oa_global      & ! (inout)
+            & GMAPFILENAME_OA, ocn_comp%GNX, my_comp%GNX,          & ! (in)
+            & send_grid_oa, recv_grid_oa, coefS_oa_global          & ! (inout)
             & )
-       write(*,*) "send_grid_oa:", send_grid_oa
-       write(*,*) "recv_grid_oa:", recv_grid_oa       
+!       write(*,*) "send_grid_oa:", send_grid_oa
+!       write(*,*) "recv_grid_oa:", recv_grid_oa       
     end if
-    call jcup_set_mapping_table( my_comp%name,                       & ! (in)
-         & ocn_comp%name, OCN_GRID_2D, my_comp%name, ATM_GRID_2D,    & ! (in) OCN_GRID_2D -> ATM_GRID_2D
-         & GMAPTAG_ATM2D_OCN2D, send_grid_oa, recv_grid_oa )           ! (in)
+    call jcup_set_mapping_table( my_comp%name,                        & ! (in)
+         & ocn_comp%name, OCN_GRID_2D, my_comp%name, ATM_GRID_2D,     & ! (in) OCN_GRID_2D -> ATM_GRID_2D
+         & GMAPTAG_ATM2D_OCN2D, send_grid_oa, recv_grid_oa )            ! (in)
+    if(my_comp%PRC_rank==0) deallocate( send_grid_oa, recv_grid_oa )
 
+    call MessageNotify( 'M', module_name, "Read the coefficients (OCN -> ATM) of conservative bilinear interpolation.")    
+
+    if(my_comp%PRC_rank==0) then    
+       call set_mappingTable_interpCoef( &
+            & GMAPFILENAME_OA_CONSERVE, ocn_comp%GNX, my_comp%GNX, & ! (in)
+            & send_grid_oa, recv_grid_oa, coefS_oa_global_conserve & ! (inout)
+            & )
+    end if    
+    call jcup_set_mapping_table( my_comp%name,                        & ! (in)
+         & ocn_comp%name, OCN_GRID_2D, my_comp%name, ATM_GRID_2D,     & ! (in) OCN_GRID_2D -> ATM_GRID_2D
+         & GMAPTAG_ATM2D_OCN2D_CONSERVE, send_grid_oa, recv_grid_oa )   ! (in)
+
+    !
+    !
+    call MessageNotify( 'M', module_name, "Set the operation index ..")    
     
-    call set_operation_index(my_comp%name, ocn_comp%name, GMAPTAG_ATM2D_OCN2D)         ! (in)
+    call set_operation_index(my_comp%name, ocn_comp%name, GMAPTAG_ATM2D_OCN2D)            ! (in)
+    call set_operation_index(my_comp%name, ocn_comp%name, GMAPTAG_ATM2D_OCN2D_CONSERVE)   ! (in)
+
+    !
+    !
+
+    call MessageNotify( 'M', module_name, "Set the interpolation coefficients (ATM -> OCN) ..")    
     
     if(my_comp%PRC_rank==0) then
-       call set_A_to_O_coef(GMAPTAG_ATM2D_OCN2D, coefS_ao_global)   ! (in)
+       call set_A_to_O_coef(GMAPTAG_ATM2D_OCN2D, coefS_ao_global)                    ! (in)
     else
-       call set_A_to_O_coef(GMAPTAG_ATM2D_OCN2D)                    ! (in)
+       call set_A_to_O_coef(GMAPTAG_ATM2D_OCN2D)                                     ! (in)
+    end if
+    
+    if(my_comp%PRC_rank==0) then
+       call set_A_to_O_coef(GMAPTAG_ATM2D_OCN2D_CONSERVE, coefS_ao_global_conserve)  ! (in)
+    else
+       call set_A_to_O_coef(GMAPTAG_ATM2D_OCN2D_CONSERVE)                            ! (in)
+    end if
+
+    call MessageNotify( 'M', module_name, "Set the interpolation coefficients (OCN -> ATM) ..")    
+    
+    if(my_comp%PRC_rank==0) then
+       call set_O_to_A_coef(GMAPTAG_ATM2D_OCN2D, coefS_oa_global)                    ! (in)
+    else
+       call set_O_to_A_coef(GMAPTAG_ATM2D_OCN2D)                                     ! (in)
     end if
 
     if(my_comp%PRC_rank==0) then
-       call set_O_to_A_coef(GMAPTAG_ATM2D_OCN2D, coefS_oa_global)   ! (in)
+       call set_O_to_A_coef(GMAPTAG_ATM2D_OCN2D_CONSERVE, coefS_oa_global_conserve)  ! (in)
     else
-       call set_O_to_A_coef(GMAPTAG_ATM2D_OCN2D)                    ! (in)
+       call set_O_to_A_coef(GMAPTAG_ATM2D_OCN2D_CONSERVE)                            ! (in)
     end if
-
+    
     
   end subroutine init_jcup_interpolate
 

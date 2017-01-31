@@ -90,6 +90,20 @@ class DCPAMUtil
     va = VArray.new(na, {"name"=>name, "long_name"=>long_name, "units"=>units})
     return GPhys.new(grid, va)
   end
+
+  def gen_LatSig2DGPysObj(name, long_name, units, timeAxis=nil, ax_Z=@ax_Sig)
+    na = nil; grid = nil
+    if timeAxis != nil
+      na = NArray.sfloat(@ax_Lat.length, ax_Z.length, timeAxis.length)
+      grid = Grid.new(@ax_Lat, ax_Z, timeAxis)
+    else
+      na = NArray.sfloat(@ax_Lat.length, ax_Z.length)
+      grid = Grid.new(@ax_Lat, ax_Z)
+    end
+
+    va = VArray.new(na, {"name"=>name, "long_name"=>long_name, "units"=>units})
+    return GPhys.new(grid, va)
+  end
   
   def calc_Pressure(gp_Ps)
     gp_Press = gen_3DGPysObj("Press", "pressure", "Pa", gp_Ps.axis(@timeAxisName))
@@ -109,16 +123,15 @@ class DCPAMUtil
   end
 
   def calc_MSF(gp_V, gp_Ps)
-    gp_MSF = gen_3DGPysObj("MSF", "mass stream function", "kg.s-1", gp_Ps.axis(@timeAxisName), @gp_sigm.axis(@sigmAxisName))
-
-    cos_phi = (@gp_lat * PI/180.0).cos
-    alph = gp_V * cos_phi * gp_Ps * @const::RPlanet * PI * 2.0 / @const::Grav
+    gp_MSF = gen_LatSig2DGPysObj("MSF", "mass stream function", "kg.s-1", gp_Ps.axis(@timeAxisName), @gp_sigm.axis(@sigmAxisName))
     
-    kmax = @gp_sigm.val.length-2
-    (0..kmax).each do |kk|
-      k = kmax - kk
-      gp_MSF[false,k,true] = gp_MSF[false,k+1,true] + \
-                          alph[false,k,true]*(@gp_sigm[k].val - @gp_sigm[k+1].val)
+    cos_phi = (@gp_lat * PI/180.0).cos
+    alph = (gp_V  * gp_Ps).mean('lon') * @const::RPlanet * cos_phi * PI * 2.0 / @const::Grav
+    
+    kmax = @gp_sigm.val.length
+    (1..kmax-1).each do |k|
+      gp_MSF[false,k,true] = gp_MSF[false,k-1,true] + \
+                          alph[false,k-1,true]*(@gp_sigm[k].val - @gp_sigm[k-1].val)
     end
 
     return gp_MSF

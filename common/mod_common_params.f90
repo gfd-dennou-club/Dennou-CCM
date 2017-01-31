@@ -43,18 +43,19 @@ module mod_common_params
   
   character(*), parameter :: ATM_GRID_2D = "atm_grid_2d"
 !!$  character(*), parameter :: ATM_GRID_3D = "atm_grid_3d"
-  integer, parameter :: NUM_ATM_GMAPTAG  = 1 ! 2
+  integer, parameter :: NUM_ATM_GMAPTAG  = 2
 
   character(*), parameter :: LAND_GRID   = "land_grid"
 
   character(*), parameter :: OCN_GRID_2D  = "ocn_grid_2d"
-  integer, parameter :: NUM_OCN_GMAPTAG  = 1 ! 2
+  integer, parameter :: NUM_OCN_GMAPTAG   = 2
 
   character(*), parameter :: SICE_GRID   = "sice_grid"
 
   character(*), parameter :: CHM_GRID    = "chm_grid"  
 
-  integer, parameter :: GMAPTAG_ATM2D_OCN2D = 1
+  integer, parameter :: GMAPTAG_ATM2D_OCN2D          = 1
+  integer, parameter :: GMAPTAG_ATM2D_OCN2D_CONSERVE = 2
 
   integer, parameter :: ATM_NUM_GRIDTYPE  = 1
   integer, parameter :: OCN_NUM_GRIDTYPE  = 1

@@ -77,7 +77,9 @@ module mod_common_compdef
   type(ComponentDef), public, pointer :: CompDef_own => null()
   
   character(STRING), public :: GMAPFILENAME_AO
+  character(STRING), public :: GMAPFILENAME_AO_CONSERVE
   character(STRING), public :: GMAPFILENAME_OA
+  character(STRING), public :: GMAPFILENAME_OA_CONSERVE
     
   integer, public :: AO_COUPLING_CYCLE_SEC
 !  integer, public :: OA_COUPLING_CYCLE_SEC
@@ -225,9 +227,11 @@ contains
     ! Local variables
     !    
     NAMELIST /PARAM_DCCM_COMMON/   &
-         & AO_COUPLING_CYCLE_SEC,  &
-         & GMAPFILENAME_AO,        &
-         & GMAPFILENAME_OA
+         & AO_COUPLING_CYCLE_SEC,    &
+         & GMAPFILENAME_AO,          &
+         & GMAPFILENAME_OA,          &
+         & GMAPFILENAME_AO_CONSERVE, &
+         & GMAPFILENAME_OA_CONSERVE
 
 
     integer :: unit_nml
@@ -238,6 +242,8 @@ contains
     
     GMAPFILENAME_OA = 'gmap-OCN_Pl42-ATM_T42.dat'
     GMAPFILENAME_AO = 'gmap-ATM_T42-OCN_Pl42.dat'
+    GMAPFILENAME_OA_CONSERVE = 'gmap-OCN_Pl42-ATM_T42_CONSERVE.dat'
+    GMAPFILENAME_AO_CONSERVE = 'gmap-ATM_T42-OCN_Pl42_CONSERVE.dat'
     AO_COUPLING_CYCLE_SEC = 7200
     
     ! NAMELIST からの入力
@@ -256,8 +262,10 @@ contains
     end if
 
     call MessageNotify( 'M', module_name, "AO_COUPLING_CYCLE_SEC=%d [sec]  ", i=(/ AO_COUPLING_CYCLE_SEC /))
-    call MessageNotify( 'M', module_name, "GMAPFILENAME_OA =%a             ", ca=(/ GMAPFILENAME_OA /) )
-    call MessageNotify( 'M', module_name, "GMAPFILENAME_AO =%a             ", ca=(/ GMAPFILENAME_AO /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_OA =%a             ", ca=(/ GMAPFILENAME_OA          /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_AO =%a             ", ca=(/ GMAPFILENAME_AO          /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_OA_CONSERVE =%a    ", ca=(/ GMAPFILENAME_OA_CONSERVE /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_AO_CONSERVE =%a    ", ca=(/ GMAPFILENAME_AO_CONSERVE /) )
         
   end subroutine common_read_config
   
