@@ -7,7 +7,7 @@
 !!
 !!
 module mod_ocn
-
+  
   ! モジュール引用; Use statements
   !
 
