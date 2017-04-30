@@ -32,16 +32,20 @@ AxisDef = DCPAMUtil::AxisNameDef
 puts "CurrentDir=#{CurrentDir} .."
 @dcpamUtil = DCPAMUtil.new(PlanetName, "#{CurrentDir}/#{VarDef::U}.nc")
 
-varList = [VarDef::U, VarDef::V, VarDef::Temp, VarDef::Ps, VarDef::QH2OVap, VarDef::Height]
-gp_U, gp_V, gp_Temp, gp_Ps, gp_QVap, gp_Height = GPhysUtil.get_GPhysObjs(varList, CurrentDir, nil, "_rank*")
+#varList = [VarDef::U, VarDef::V, VarDef::Temp, VarDef::Ps, VarDef::QH2OVap, VarDef::Height]
+#gp_U, gp_V, gp_Temp, gp_Ps, gp_QVap, gp_Height = GPhysUtil.get_GPhysObjs(varList, CurrentDir, nil, "_rank*")
+varList = [VarDef::V, VarDef::Ps]
+gp_V, gp_Ps = GPhysUtil.get_GPhysObjs(varList, CurrentDir, nil, "_rank*")
 
 
 ofile = NetCDF::create(OutputNCName)
 GPhys::IO.each_along_dims_write( 
-  [gp_U, gp_V, gp_Temp, gp_Ps, gp_QVap, gp_Height], ofile, AxisDef::Time){
-  |u, v, temp, ps, qvap, height|
+#  [gp_U, gp_V, gp_Temp, gp_Ps, gp_QVap, gp_Height], ofile, AxisDef::Time){
+#  |u, v, temp, ps, qvap, height|
+  [gp_V, gp_Ps], ofile, AxisDef::Time){
+  |v, ps|
 
-  time = u.axis("time").pos
+  time = v.axis("time").pos
   puts "time=#{time.val[0]} [#{time.units}] .."
 
   msf = @dcpamUtil.calc_MSF(v, ps)

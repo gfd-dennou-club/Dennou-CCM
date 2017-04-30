@@ -92,6 +92,8 @@ module mod_atm
   character(*), parameter :: module_name = 'mod_atm'
 
   real(DP) :: TmpAvgGlobal, TmpAvgGlobalSave
+
+  real(DP), parameter :: PI = acos(-1d0)
   
 contains
 
@@ -434,6 +436,10 @@ contains
          & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcSnow, RECV_MODE="SNP",                        & ! (in)
          & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D, EXCHANGE_TAG=1)        ! (in)
 
+    call jcup_def_varg(field%varg(o2a_SfcEngyFlxMod_id)%varg_ptr, my_comp%name, 'o2a_SfcEngyFlxMod', ATM_GRID_2D, 1, & ! (in)
+         & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcEngyFlxMod, RECV_MODE="SNP",                         & ! (in)
+         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D_CONSERVE, EXCHANGE_TAG=1)      ! (in)
+    
     !- Finish defining variables for jup ---------------------
     
     call jcup_end_var_def()
@@ -637,7 +643,6 @@ contains
     integer :: p, j, m, n
     real(DP) :: Tmpavg, SurfArea
     integer :: ierr
-    real(DP), parameter :: PI = acos(-1d0)
 
     ! 実行文; Executable statement
     !
@@ -658,8 +663,8 @@ contains
 
     call atm_set_send_2d( a2d_SfcAirTemp_id, xy_SurfAirTemp )
     
-    TmpAvgGlobal = IntLonLat_xy(xy_RainAtm + xy_SnowAtm - xy_LatentAtm/LatentHeat)/(4d0*PI)
-    call HistoryAutoPut( TimeSecA, 'OutputWtMass', TmpAvgGlobal)
+!!$    TmpAvgGlobal = IntLonLat_xy(xy_RainAtm + xy_SnowAtm - xy_LatentAtm/LatentHeat)/(4d0*PI)
+!!$    call HistoryAutoPut( TimeSecA, 'OutputWtMass', TmpAvgGlobal)
 !!$    if(my_comp%PRC_rank==0) then
 !!$       TmpAvgGlobalSave = TmpAvgGlobalSave + TmpAvgGlobal
 !!$    end if
@@ -704,6 +709,8 @@ contains
          & write_data_2d
 
     use mod_common_params
+
+    use intavr_operate, only: IntLonLat_xy
     
     ! 宣言文; Declareration statements
     !            
@@ -715,7 +722,8 @@ contains
     real(DP) :: xy_SfcTemp(0:iMax-1,jMax)
     real(DP) :: xy_SfcAlbedo(0:iMax-1,jMax)
     real(DP) :: xy_SfcSnow(0:iMax-1,jMax)
-
+    real(DP) :: xy_SfcEngyFlxMod(0:iMax-1,jMax)
+    
     ! 実行文; Executable statement
     !
     
@@ -731,6 +739,9 @@ contains
 
     call atm_get_write( o2a_SfcSnow_id, o2d_SfcSnow,     & ! (in)
          & xy_SfcSnow )                                    ! (out)
+
+    call atm_get_write( o2a_SfcEngyFlxMod_id, o2d_SfcEngyFlxMod, & ! (in)
+         & xy_SfcEngyFlxMod )                                      ! (out)
     
     !
     !
@@ -742,14 +753,16 @@ contains
 
 !!$       if(my_comp%PRC_rank==0) then
 !!$          write(*,*) "Atm: FreshWtFlxSAvg=", TmpAvgGlobalSave/6d0
+!!$          write(*,*) "SfcEngyFlxMod:", TmpAvgGlobalSave
 !!$       end if
 !!$       TmpAvgGlobalSave = 0d0
        
 !!$       write(*,*) "Check the unit of SfcSnow.."
        
        call agcm_update_surfprop( &
-            & xy_SurfTempRecv=xy_SfcTemp, xy_SurfAlbedoRecv=xy_SfcAlbedo,  & ! (in)
-            & xy_SurfSnowRecv=1d3*xy_SfcSnow                               & ! (in)
+            & xy_SurfTempRecv=xy_SfcTemp, xy_SurfAlbedoRecv=xy_SfcAlbedo,            & ! (in)
+            & xy_SurfSnowRecv=1d3*xy_SfcSnow,                                        & ! (in)
+            & xy_SfcEngyFlxModRecv=xy_SfcEngyFlxMod*AO_COUPLING_CYCLE_SEC            & ! (in)
             & )
     end if
 
@@ -799,7 +812,11 @@ contains
          & dims=dims_XYT, longname='surface albedo calculated by ocean and sea-ice model', units='1') 
 
     call HistoryAutoAddVariable( o2d_SfcSnow, &
-         & dims=dims_XYT, longname='surface snode depth  calculated by ocean and sea-ice model', units='m') 
+         & dims=dims_XYT, longname='surface snow depth  calculated by ocean and sea-ice model', units='m') 
+
+    call HistoryAutoAddVariable( o2d_SfcEngyFlxMod, &
+         & dims=dims_XYT, longname='modification of surface energy flux due to the change of surface temperature' &
+         & // ' calculated by ocean and sea-ice model', units='m') 
     
     call HistoryAutoAddVariable('CheckVar', &
          & dims=dims_XYT, longname='CheckVar', units='1') 

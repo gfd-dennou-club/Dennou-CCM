@@ -19,13 +19,12 @@
 #   
 #********************************************************************************************
 
-
 ${coupledRunSkipSCyc:=false}
 ${FlagVerticalFilter:=false}
-${HDEFoldTimeHour:=3}
 ${KMINGSVF:=2}
 ${KMAXGSVF:=31}
 ${FlagPRCPPC:=true}
+${DelTimeMin:=20}
 
 #--------------------------------------------------------------------------------------------
 
@@ -82,7 +81,6 @@ for ((n=StartCycleNum; n<=nCycle; n++)) ; do
      s!#gtool_historyauto_nml_IntValue#!${HistIntValueDay}.0!g; 
      s!#rad_DennouAGCM_nml_RstInputFile#!${atm_wdir}/cycle$((n-1))-couple/rst_rad.nc!g;
      s!#rad_DennouAGCM_nml_SolarConst#!${SolarConst}.0!g;
-     s!#dynamics_hspl_vas83_nml_HDEFoldTimeValue#!${HDEFoldTimeHour}!g;
      s!#dynamics_hspl_vas83_nml_FlagVertFilter#!${FlagVerticalFilter}!g;
      s!#dynamics_hspl_vas83_nml_KMINGSVF#!${KMINGSVF}!g;
      s!#dynamics_hspl_vas83_nml_KMAXGSVF#!${KMAXGSVF}!g;

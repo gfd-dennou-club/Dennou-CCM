@@ -48,19 +48,19 @@ GPhys::IO.each_along_dims_write(
   rho = @dcpamUtil.calc_Density(press, temp)
 
   dryStatEn = rho*(Atm::CpDry*temp + Grav*height)
-  moistStatEn = rho*(LatentHeatV*qvap)
+  latentEn = rho*(LatentHeatV*qvap)
 
 
   [ \
-    GPhysUtil.redef_GPhysObj( @dcpamUtil.globalIntLonSig(dryStatEn*v/rho / 1e15, ps),                  \
+    GPhysUtil.redef_GPhysObj( @dcpamUtil.globalIntLonSig(dryStatEn*v/rho / 1e15, ps),                   \
                  "dryStatEnFlxLat",                                                                     \
                  "amount of meridional dry static energy flux integrated in vertical column", "PW") ,   \
-    GPhysUtil.redef_GPhysObj( @dcpamUtil.globalIntLonSig(moistStatEn*v/rho / 1e15, ps),                \
+    GPhysUtil.redef_GPhysObj( @dcpamUtil.globalIntLonSig(latentEn*v/rho / 1e15, ps),                    \
+                 "latentEnFlxLat",                                                                      \
+                 "amount of meridional latent energy flux integrated in vertical column", "PW") ,       \
+    GPhysUtil.redef_GPhysObj( @dcpamUtil.globalIntLonSig((dryStatEn + latentEn)*v/rho / 1e15, ps),      \
                  "moistStatEnFlxLat",                                                                   \
                  "amount of meridional moist static energy flux integrated in vertical column", "PW") , \
-    GPhysUtil.redef_GPhysObj( @dcpamUtil.globalIntLonSig((dryStatEn + moistStatEn)*v/rho / 1e15, ps),  \
-                 "totStatEnFlxLat",                                                                     \
-                 "amount of meridional total static energy flux integrated in vertical column", "PW") , \
   ]
 }
 

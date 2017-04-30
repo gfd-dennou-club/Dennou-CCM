@@ -19,6 +19,21 @@
 #   
 #********************************************************************************************
 
+${OcnRefSalt:=35}
+${ADelTimeMin:=20}
+${coupledRunSkipSCyc:=false}
+${FlagVerticalFilter:=false}
+${KMINGSVF:=2}
+${KMAXGSVF:=31}
+${HistIntValueDayCPLRun:=146}
+${HistIntValueDaySTDAloneRun:=1825}
+${coupledStartDay:=0}
+
+${IniSolarConst:=$SolarConst}
+${EndSolarConst:=$SolarConst}
+${DelSolarConstPerCyc:=5}
+${IniCycSVariation:=$StartCycleNum}
+EndCycSVariation=$((IniCycSVariation+(EndSolarConst-IniSolarConst)/DelSolarConstPerCyc))
 
 #--------------------------------------------------------------------------------------------
 
@@ -47,22 +62,28 @@ cp    ${ocn_standalone_pedir}/${ocn_standalone_pename} ${ocn_wdir}/ocn_standalon
 cp -r ${ocn_standalone_libdir} ${ocn_wdir}
 
 echo "Create some directories to save data.."
-for ((n=1; n<=nCycle; n++)) ; do
+for ((n=StartCycleNum; n<=nCycle; n++)) ; do
     create_dir "${atm_wdir}/cycle${n}-couple"
     create_dir "${ocn_wdir}/cycle${n}-couple"
-    create_dir "${ocn_wdir}/cycle${n}-couple/SfcBC"
+#    create_dir "${ocn_wdir}/cycle${n}-couple/SfcBC"
 
     create_dir "${ocn_wdir}/cycle${n}-standalone"
-    create_dir "${ocn_wdir}/cycle${n}-standalone/SfcBC"
+#    create_dir "${ocn_wdir}/cycle${n}-standalone/SfcBC"
 done
 
 cd $PBS_O_WORKDIR
 
 #- Perform temporal integration of coupled system -------------------------------
 
-coupledRunRestartTime=$(((StartCycleNum-1)*coupledTimeIntrvPerCycle))
+coupledRunRestartTime=$((coupledStartDay+(StartCycleNum-1)*coupledTimeIntrvPerCycle))
 for ((n=StartCycleNum; n<=nCycle; n++)) ; do
 
+    nowSolarConst=$SolarConst
+    if [ $EndCycSVariation -ge $n ]; then
+	echo "hoge"
+	nowSolarConst=$((IniSolarConst + (n - IniCycSVariation)*DelSolarConstPerCyc))
+    fi
+    
     ######################################################################
     # Run coupled model
     ######################################################################
@@ -84,9 +105,14 @@ for ((n=StartCycleNum; n<=nCycle; n++)) ; do
      s!#timeset_nml_InitYear#!2000!g; 
      s!#timeset_nml_EndYear#!2000!g;
      s!#timeset_nml_EndDay#!$((coupledRunEndTime+1))!g;
-     s!#gtool_historyauto_nml_IntValue#!146.0!g; 
+     s!#timeset_nml_ADelTimeMin#!${ADelTimeMin}.0!g;
+     s!#gtool_historyauto_nml_IntValue#!${HistIntValueDayCPLRun}.0!g; 
      s!#rad_DennouAGCM_nml_RstInputFile#!${atm_wdir}/cycle$((n-1))-couple/rst_rad.nc!g;
-     s!#rad_DennouAGCM_nml_SolarConst#!${SolarConst}.0!g;
+     s!#rad_DennouAGCM_nml_SolarConst#!${nowSolarConst}.0!g;
+     s!#dynamics_hspl_vas83_nml_FlagVertFilter#!${FlagVerticalFilter}!g;
+     s!#dynamics_hspl_vas83_nml_KMINGSVF#!${KMINGSVF}!g;
+     s!#dynamics_hspl_vas83_nml_KMAXGSVF#!${KMAXGSVF}!g;
+     s!#cloud_none_nml_FlagPRCPPC#!${FlagPRCPPC}!g;
 EOF
     ` 
     atm_nml=${atmDirPath}/${atm_nml_template##*/}
@@ -98,7 +124,7 @@ EOF
     SIceRestartInFile=""
 
     sedArgs=`cat << EOF
-     s!#gtool_historyauto_nml_IntValue#!146.0!g;
+     s!#gtool_historyauto_nml_IntValue#!${HistIntValueDayCPLRun}.0!g;
      s!#gtool_historyauto_nml_OriginValue#!${coupledRunRestartTime}!g;
      s!#gtool_historyauto_nml_TerminusValue#!${coupledRunEndTime}!g;     
      s!#OcnRestartFile_nml_InputFileName#!${OcnRestartInFile}!g; 
@@ -113,8 +139,10 @@ EOF
      s!#TemporalInteg_nml_EndYear#!2000!g; s!#TemporalInteg_nml_EndDay#!$((coupledRunEndTime+1))!g;
      s!#BoundaryCondition_nml_ThermBCSurface#!PrescFlux!g;
      s!#BoundaryCondition_nml_SaltBCSurface#!PrescFlux!g;
+     s!#Constants_nml_RefSalt#!${OcnRefSalt}d0!g;
      s!#Exp_APECoupleClimate_nml_RunCycle#!${n}!g;
      s!#Exp_APECoupleClimate_nml_RunTypeName#!Coupled!g;
+     s!#Exp_APECoupleClimate_nml_OcnInitSalt#!${OcnRefSalt}d0!g;
      s!#Exp_APECoupleClimate_nml_SfcBCDataDir#!${ocn_wdir}/cycle$((n-1))-couple/!g;
      s!#Exp_APECoupleClimate_nml_SfcBCMeanInitTime#!${coupledRunRestartTime}.0!g;
      s!#Exp_APECoupleClimate_nml_SfcBCMeanEndTime#!${coupledRunRestartTime}.0!g;
@@ -132,8 +160,8 @@ EOF
     else
         echo "** Execute Dennou-OGCM  ******************************"
 
-	cp    ${DCCMConfPath} ${atmDirPath}
-	cp    ${DCCMConfPath} ${ocnDirPath}
+	cp    ${DCCMConfPath} ${atmDirPath}/DCCM.conf
+	cp    ${DCCMConfPath} ${ocnDirPath}/DCCM.conf
 	
 	${MPIRUN}                                                   \
 	-wdir ${atmDirPath} -env OMP_NUM_THREADS ${atm_THREADS_NUM} \
@@ -172,25 +200,32 @@ EOF
     echo "-- cycle=${n} (OGCM stadalone run) -- ${standaloneTimeIntrvPerCycle} [day]"
 
     sedArgs=`cat << EOF
-      s!#gtool_historyauto_nml_IntValue#!500.0!g;
+      s!#gtool_historyauto_nml_IntValue#!${HistIntValueDaySTDAloneRun}.0!g;
+      s!#gtool_historyauto_nml_OriginValue#!0.0!g;
+      s!#gtool_historyauto_nml_TerminusValue#!${standaloneTimeIntrvPerCycle}!g;      
       s!#OcnRestartFile_nml_InputFileName#!!g; 
       s!#OcnRestartFile_nml_OutputFileName#!RestartOcnData.nc!g;
-      s!#OcnRestartFile_nml_IntValue#!10000.0!g;
+      s!#OcnRestartFile_nml_IntValue#!9125.0!g;
       s!#SIceRestartFile_nml_InputFileName#!!g; 
       s!#SIceRestartFile_nml_OutputFileName#!RestartSIceData.nc!g;
-      s!#SIceRestartFile_nml_IntValue#!10000.0!g;
+      s!#SIceRestartFile_nml_IntValue#!9125.0!g;
       s!#TemporalInteg_nml_DelTimeHour#!${standaloneODelTimeHour}!g;
       s!#TemporalInteg_nml_RestartTimeVal#!0.0!g;
       s!#TemporalInteg_nml_InitYear#!2000!g;
-      s!#TemporalInteg_nml_EndYear#!$((2000 + standaloneTimeIntrvPerCycle/365 + 1))!g;
-      s!#TemporalInteg_nml_EndDay#!1!g;
+      s!#TemporalInteg_nml_EndYear#!$((2000 + standaloneTimeIntrvPerCycle/365))!g;
+      s!#TemporalInteg_nml_EndDay#!10!g;
       s!#BoundaryCondition_nml_ThermBCSurface#!PrescFlux_Han1984!g;
       s!#BoundaryCondition_nml_SaltBCSurface#!PrescFlux!g;
+      s!#Constants_nml_RefSalt#!${OcnRefSalt}d0!g;
       s!#Exp_APECoupleClimate_nml_RunCycle#!${n}!g;
       s!#Exp_APECoupleClimate_nml_RunTypeName#!Standalone!g;
+      s!#Exp_APECoupleClimate_nml_OcnInitSalt#!${OcnRefSalt}d0!g;
       s!#Exp_APECoupleClimate_nml_SfcBCDataDir#!${ocn_wdir}/cycle$((n))-couple/!g;
-      s!#Exp_APECoupleClimate_nml_MeanInitTime#!$((coupledRunRestartTime + 4*365)).0!g;
-      s!#Exp_APECoupleClimate_nml_MeanEndTime#!${coupledRunEndTime}.0!g;
+      s!#Exp_APECoupleClimate_nml_SfcBCMeanInitTime#!$((coupledRunEndTime - 438)).0!g;
+      s!#Exp_APECoupleClimate_nml_SfcBCMeanEndTime#!${coupledRunEndTime}.0!g;
+      s!#Exp_APECoupleClimate_nml_RestartDataDir#!${ocn_wdir}/cycle$((n))-couple/!g;
+      s!#Exp_APECoupleClimate_nml_RestartMeanInitTime#!${coupledRunEndTime}.0!g;
+      s!#Exp_APECoupleClimate_nml_RestartMeanEndTime#!${coupledRunEndTime}.0!g;
 EOF
     `
     ocn_nml=${ocnDirPath_standalone}/${ocn_nml_template##*/}

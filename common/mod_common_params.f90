@@ -115,7 +115,10 @@ module mod_common_params
   character(*), parameter :: o2d_SfcSnow     = "o2d_SfcSnow" 
   integer, parameter :: o2d_SfcSnow_id       = 3
 
-  integer, parameter :: NUM_VAR2D_O2A         = 3
+  character(*), parameter :: o2d_SfcEngyFlxMod = "o2d_SfcEngyFlxMod" 
+  integer, parameter :: o2d_SfcEngyFlxMod_id   = 4
+  
+  integer, parameter :: NUM_VAR2D_O2A          = 4
   
   !* Ocean -> Sea-ice *******************************************
   
@@ -141,6 +144,7 @@ module mod_common_params
   integer :: o2a_SfcTemp_id                   = 1
   integer :: o2a_SfcAlbedo_id                 = 2
   integer :: o2a_SfcSnow_id                   = 3
+  integer :: o2a_SfcEngyFlxMod_id             = 4
   
   
   !* Atmosphere -> Ocean(, Sea-ice)

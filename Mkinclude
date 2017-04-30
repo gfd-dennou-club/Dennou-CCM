@@ -33,6 +33,7 @@
  ATM_MODEL_INCDIR       = $(ATM_MODEL_DIR)/include
  ATM_MODEL_LIBDIR       = $(ATM_MODEL_DIR)/lib
  ATM_MODEL_LIBNAME      = dcpam5
+ ATM_MODEL_CPPDEF       = -DINTH98_MODIFY
 
  OCN_MODEL_DIR          = $(HOME)/workspace/Dennou-OGCM/model/dogcm
  OCN_MODEL_INCDIR       = $(OCN_MODEL_DIR)/include
@@ -57,7 +58,7 @@
 #- COMMON ---------
 COMMON_INCLUDEFLAG = -I$(INCDIR) -I$(JCUPINCDIR)              \
 	-I$(SPMLDIR)/include -I$(GTOOL5DIR)/include           \
-	-I$(NETCDFDIR)/include
+	-I$(NETCDFDIR)/include                                
 
 COMMON_LDFLAG      = \
 	$(JCUPLIB)		                              \
@@ -71,7 +72,8 @@ ATM_INCLUDEFLAG = \
 	-I$(INCDIR) -I$(JCUPINCDIR)                    \
 	-I$(ATM_MODEL_INCDIR)                          \
 	-I$(SPMLDIR)/include -I$(GTOOL5MPIDIR)/include \
-	-I$(NETCDFDIR)/include
+	-I$(NETCDFDIR)/include                         \
+	$(ATM_MODEL_CPPDEF)
 
 ATM_LDFLAG      = \
 	-L$(ATM_MODEL_LIBDIR) -l$(ATM_MODEL_LIBNAME)          \

@@ -92,18 +92,29 @@ ofile.close
 
 
 ofile = NetCDF::create(OutputNCName_SIce)
-varList = [ "IceThick", "SnowThick", "SIceCon", "SIceEn", "Wice" ]
-gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn, gp_Wice = GPhysUtil.get_GPhysObjs(varList, Dir::pwd, "history_sice.nc")
+varList = [ "IceThick", "SnowThick", "SIceCon", "SIceEn", "Wice", "DelSfcHFlxAI"] #, "SnowFall", "Evap"]
+
+gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn, gp_Wice, gp_DelSfcHFlxAI = GPhysUtil.get_GPhysObjs(varList, Dir::pwd, "history_sice.nc")
+#gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn, gp_Wice, gp_SnowFall, gp_Evap = GPhysUtil.get_GPhysObjs(varList, Dir::pwd, "history_sice.nc")
 
 #gp_SIceEnSum = gp_SIceEn.sum("sig2")
 
 GPhys::IO.each_along_dims_write( \
-  [gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn, gp_Wice], ofile, AxisDef::Time){ \
-  |iceThick, snowThick, siceCon, siceEn, wice|
+                                 [gp_IceThick, gp_SnowThick, gp_SIceCon, gp_SIceEn, gp_Wice, gp_DelSfcHFlxAI 
+#                                  gp_SnowFall, gp_Evap
+                               ], ofile, AxisDef::Time){ \
+  |iceThick, snowThick, siceCon, siceEn, wice, delSfcHFlxAI|
 
   time = iceThick.axis("time")
   puts "time=#{time.pos.val[0]} [#{time.pos.units}] .."
 
+#  snowFallOnSice = snowFall.copy
+#  snowFallOnSice[ (siceCon <= 0.0).where ] = 0.0
+
+#  evapOnSice = evap.copy
+#  evapOnSice[ (siceCon <= 0.0).where ] = 0.0
+  
+  
   [ \
     GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(iceThick),                    \
                               "IceThick",                                             \
@@ -116,10 +127,19 @@ GPhys::IO.each_along_dims_write( \
                               "global mean of sea ice thickness", "1"),               \
     GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(siceEn.sum('sig2')),          \
                               "SIceEn"  ,                                            \
-                              "global mean of sea ice energy", "J/m2"),               \
+                              "global mean of sea ice energy", "J/m2"),              \
     GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(wice),                       \
                               "Wice"  ,                                                   \
                               "global mean of sea ice creation and melting", "kg.m-2.s-1"),   \
+    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(delSfcHFlxAI),                       \
+                              "DelSfcHFlxAI"  ,                                                   \
+                              "global mean of difference from SfcHFlxAI", "W.m-2"),   \
+#    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(snowFallOnSice),                     \
+#                              "SnowFallOnSIce"  ,                                            \
+#                              "global mean of snowfall over sea ice", "kg.m-2.s-1"),               \
+#    GPhysUtil.redef_GPhysObj( @dsogcmUtil.globalMeanSfc(evapOnSice),                     \
+#                              "evapOnSIce"  ,                                            \
+#                              "global mean of evaporation over sea ice", "kg.m-2.s-1"),               \
   ]
 }
 ofile.close

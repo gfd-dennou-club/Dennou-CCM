@@ -1,5 +1,5 @@
 !-------------------------------------------------------------
-! Copyright (c) 2015-2016 Kawai Yuta. All rights reserved.
+! Copyright (c) 2015-2017 Kawai Yuta. All rights reserved.
 !-------------------------------------------------------------
 !> @brief A module for ocean component
 !! 
@@ -84,14 +84,14 @@ module mod_ocn
   !    
   implicit none
   private
-
+ 
   ! 公開手続き
   ! Public procedure
   !    
   public :: ocn_init
   public :: ocn_run
   public :: ocn_fin
-
+ 
   ! 非公開変数
   ! Private variable
   !
@@ -395,12 +395,20 @@ contains
          & xyza_U, xyza_V,                    &
          & xyzaa_TRC, TRCID_PTEMP, TRCID_SALT
 
+!!$    use SpmlUtil_mod, only: w_xy, xy_w    
+!!$    use LPhys_DIFF_spm_mod, only: &
+!!$         & w_Filter
+!!$    
+!!$    real(DP) :: xy_SfcTemp(IA,JA)
+    
     ! 実行文; Executable statement
     !
 
+!!$    xy_SfcTemp(IS:IE,JS:JE) = xy_w(w_Filter*w_xy(xyzaa_TRC(IS:IE,JS:JE,KS,TRCID_PTEMP,TIMELV_ID_N)))
     
     call DSIce_main_update_OcnField( &
          & xyzaa_TRC(:,:,KS,TRCID_PTEMP,TIMELV_ID_N),             & ! (in)
+!!$         & xy_SfcTemp, & ! (in)
          & xyzaa_TRC(:,:,KS,TRCID_SALT,TIMELV_ID_N),              & ! (in)
          & z_KAXIS_Weight(KS)*xy_Topo(:,:),                       & ! (in)
          & xyza_U(:,:,KS,TIMELV_ID_N), xyza_V(:,:,KS,TIMELV_ID_N) & ! (in)
@@ -460,12 +468,10 @@ contains
          & xy_FreshWtFlxS                                & ! (in)
          & )
 
-
-    
   end subroutine pass_field_sice2ocn
 
   !-----------------------------------------------------------------------
-
+   
   !
   !
   subroutine init_jcup_grid()
@@ -540,7 +546,7 @@ contains
     call jcup_end_grid_def()
     
   end subroutine init_jcup_grid
-
+  
   !---------------------------------------------------------------------------------------------------
   
   subroutine init_jcup_var()
@@ -573,7 +579,8 @@ contains
     call jcup_def_varp( field%varp(o2d_SfcTemp_id)%varp_ptr, my_comp%name, o2d_SfcTemp, OCN_GRID_2D )
     call jcup_def_varp( field%varp(o2a_SfcAlbedo_id)%varp_ptr, my_comp%name, o2d_SfcAlbedo, OCN_GRID_2D )
     call jcup_def_varp( field%varp(o2d_SfcSnow_id)%varp_ptr, my_comp%name, o2d_SfcSnow, OCN_GRID_2D )
-
+    call jcup_def_varp( field%varp(o2d_SfcEngyFlxMod_id)%varp_ptr, my_comp%name, o2d_SfcEngyFlxMod, OCN_GRID_2D )
+ 
     !- Variable getten from  other components
 
     call jcup_def_varg( field%varg(a2o_WindStressX_id)%varg_ptr, my_comp%name, 'a2o_WindStressX', OCN_GRID_2D, 1,  & ! (in)
@@ -701,11 +708,11 @@ contains
 
     call set_O_to_A_coef(GMAPTAG_ATM2D_OCN2D)            ! (in)
     call set_O_to_A_coef(GMAPTAG_ATM2D_OCN2D_CONSERVE)   ! (in)
-
+ 
   end subroutine init_jcup_interpolate
-
-  !----------------------------------------------------------------------------------
   
+  !----------------------------------------------------------------------------------
+   
   subroutine set_and_put_data( CurrentTimeSec )
 
     ! モジュール引用; Use statement
@@ -726,7 +733,8 @@ contains
          & xya_IceThick, xya_SnowThick
     
     use DSIce_Boundary_vars_mod, only: &
-         & xy_SfcAlbedoAI
+         & xy_SfcAlbedoAI, xy_DelSfcHFlxAI, &
+         & xy_SenHFlx
 
     use DOGCM_Boundary_vars_mod, only: &
          & xy_SfcAlbedoAO, xy_SeaSfcTemp
@@ -734,6 +742,8 @@ contains
     use DOGCM_Admin_Variable_mod, only: &
          & xyzaa_TRC, TRCID_PTEMP
 
+    use DOGCM_Admin_TInteg_mod, only: &
+         & TimeSecB 
     
     !* Dennou-CCM
     
@@ -745,7 +755,9 @@ contains
 
     use mod_common_params
 
-
+    use SpmlUtil_mod, only: &
+         & AvrLonLat_xy
+    
     ! 宣言文; Declareration statements
     !            
     real(DP), intent(in) :: CurrentTimeSec
@@ -753,17 +765,19 @@ contains
     ! 局所変数
     ! Local variables
     !
-
+ 
     real(DP) :: xy_SfcAlbedo4Atm(IAO,JAO)
     real(DP) :: xy_SfcTemp4Atm(IAO,JAO)
     real(DP) :: xy_SfcSnow4Atm(IAO,JAO)
+    real(DP) :: xy_SfcEngyFlxMod4Atm(IAO,JAO)
+    
     integer :: i
     integer :: j
-    real(DP), parameter :: PI = acos(-1d0)
-
+!!$    real(DP), parameter :: PI = acos(-1d0)
+!!$    real(DP) :: xy_Tmp(IAO,JAO)
     
     ! 実行文; Executable statement
-
+    
     !$omp parallel do private(i,j)
     do j = JSO, JEO
     do i = ISO, IEO
@@ -771,21 +785,26 @@ contains
           xy_SfcAlbedo4Atm(i,j) = xy_SfcAlbedoAI(i,j)
           xy_SfcTemp4Atm(i,j)   = degC2K( xya_SIceSfcTemp(i,j,SICE_TLN) )
           xy_SfcSnow4Atm(i,j)   = xya_SnowThick(i,j,SICE_TLN)
+          xy_SfcEngyFlxMod4Atm(i,j) = xy_DelSfcHFlxAI(i,j)
        else
           xy_SfcAlbedo4Atm(i,j) = xy_SfcAlbedoAO(i,j)
           xy_SfcTemp4Atm(i,j)   = xy_SeaSfcTemp(i,j)
           xy_SfcSnow4Atm(i,j)   = 0d0 
+          xy_SfcEngyFlxMod4Atm(i,j) = 0d0
        end if
+       ! Consider the correction of sea-ice surface energy flux due to the change of surface temperature. 
+       ! (In the current implementation, the heat energy by the correction is added to sensible heat flux. 
+       xy_SenHFlx(i,j) = xy_SenHFlx(i,j) + xy_DelSfcHFlxAI(i,j) 
     end do
     end do
-
+  
+    call output_var( TimeSecB, 'a2o_SenHFlx', xy_SenHFlx )
+!!$    call output_var( TimeSecB, 'a2o_SfcHFlxMod', xy_Tmp )
+    
     call ocn_set_send_2d( o2a_SfcTemp_id, xy_SfcTemp4Atm(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( o2a_SfcAlbedo_id, xy_SfcAlbedo4Atm(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( o2a_SfcSnow_id, xy_SfcSnow4Atm(ISO:IEO,JSO:JEO) )
-
-!!$    write(*,*) "Time=", CurrentTimeSec, &
-!!$         & "SfcTemp:", xy_SfcTemp4Atm(ISO,JSO:JSO+2), &
-!!$         & "SIceCon:", xya_SIceCon(ISO,JSO:JSO+2,SICE_TLN)
+    call ocn_set_send_2d( o2a_SfcEngyFlxMod_id, xy_SfcEngyFlxMod4Atm(ISO:IEO,JSO:JEO) )
     
   contains
     subroutine ocn_set_send_2d(varpID, send_data)
@@ -915,7 +934,7 @@ contains
        call ocn_get_write( a2o_SfcAirTemp_id, "a2o_SfcAirTemp",   & ! (in)
             & xy_SfcAirTemp )                                       ! (in)
     end if
-
+  
 !!$    write(*,*) "ocn: tstep=", my_comp%tstep
     call output_var( CurrentTimeSec, 'a2o_WindStressX', xy_WindStressXAO )
     call output_var( CurrentTimeSec, 'a2o_WindStressY', xy_WindStressYAO )
@@ -924,15 +943,14 @@ contains
     call output_var( CurrentTimeSec, 'a2o_LUwRFlx', xy_LUwRFlx )
     call output_var( CurrentTimeSec, 'a2o_SUwRFlx', xy_SUwRFlx )
     call output_var( CurrentTimeSec, 'a2o_LatHFlx', xy_LatHFlx )
-    call output_var( CurrentTimeSec, 'a2o_SenHFlx', xy_SenHFlx )
+!!$    call output_var( CurrentTimeSec, 'a2o_SenHFlx', xy_SenHFlx )
     call output_var( CurrentTimeSec, 'a2o_DSfcHFlxDTs', xy_DLatSenHFlxDTs )
     call output_var( CurrentTimeSec, 'a2o_RainFall', xy_RainFall )
     call output_var( CurrentTimeSec, 'a2o_SnowFall', xy_SnowFall )
     call output_var( CurrentTimeSec, 'a2o_SfcAirTemp', xy_SfcAirTemp )
-
+      
+    !-------------------------------------------------------------------
     
-    !------------------------------------------------------------------
-
     if( my_comp%tstep > 1 ) then
     
        !$omp parallel do collapse(2)
@@ -953,15 +971,14 @@ contains
 
              ! For sea-ice model
              xy_WindStressXAI(i,j) = xy_WindStressXAO(i,j)
-             xy_WindStressYAI(i,j) = xy_WindStressYAO(i,j)          
+             xy_WindStressYAI(i,j) = xy_WindStressYAO(i,j)           
              !xy_DSfcHFlxAIDTs(i,j) = xy_DSfcHFlxDTs(i,j)
              !xy_DLatSenHFlxDTs(i,j) = xy_DSfcHFlxDTs(i,j)
              xy_Evap(i,j) = xy_LatHFlx(i,j)/LatentHeat    ! [kg/(m2.s)]
           end do
        end do
-
     end if
- 
+     
     call DOGCM_IO_History_HistPut( 'a2o_InputMass', AvrLonLat_xy(xy_FreshWtFlxS0(ISO:IEO,JSO:JEO))*1d3)
     
   contains
@@ -1018,6 +1035,7 @@ contains
     call DOGCM_IO_History_RegistVar( 'a2o_SfcAirTemp', 'IJT', 'Surface air temperature', 'K')
 
     call DOGCM_IO_History_RegistVar( 'a2o_InputMass', 'T', 'input mass to ocean and sea-ice models', 'kg.m-2.s-1' )
+    call DOGCM_IO_History_RegistVar( 'a2o_SfcHFlxMod', 'IJT', 'modification of heat flux', 'K')
     
   end subroutine output_prepare
 
@@ -1154,10 +1172,10 @@ contains
             & nml = dogcm_nml, iostat = iostat_nml )   ! (out)
        close( unit_nml )
     end if
-
+ 
     ! - Convert the type name into the corresponding ID ---------
     !
-
+ 
     ! Specify the governing equations used in thermodynamics model
     
     

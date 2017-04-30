@@ -27,7 +27,7 @@ module dcpam_main_mod
   ! 力学過程 (スペクトル法, Arakawa and Suarez (1983))
   ! Dynamical process (Spectral method, Arakawa and Suarez (1983))
   !
-  use dynamics_hspl_vas83, only: DynamicsHsplVAS83
+  use dynamics_hspl_vas83, only: DynamicsHsplVAS83, VerticalFilterAdjust, SurfPresChangeWithWtVap
 
   ! 物理過程のみの計算のための力学過程
   ! A dynamics for calculation with physical processes only
@@ -131,7 +131,7 @@ module dcpam_main_mod
   ! 積雲パラメタリゼーション (対流調節)
   ! Cumulus parameterization (convection adjust)
   !
-  use moist_conv_adjust, only: MoistConvAdjust
+  use moist_conv_adjust, only: MoistConvAdjust, MoistConvAdjustI98
 
   ! Relaxed Arakawa-Schubert scheme
   ! Relaxed Arakawa-Schubert scheme
@@ -862,6 +862,7 @@ module dcpam_main_mod
   integer, parameter:: IDMCMethodMCA         = 31
   integer, parameter:: IDMCMethodRAS         = 32
   integer, parameter:: IDMCMethodRASWithIce  = 33
+  integer, parameter:: IDMCMethodMCAI98      = 34
 
   integer           :: IDLSCMethod               ! 大規模凝結 (非対流性凝結) の計算方法
                                                  ! Method for large scale condensation
@@ -942,18 +943,33 @@ contains
 
   ! Interface for coupler to update variables of surface properties in DCPAM.
   subroutine dcpam_UpdateSurfaceProperties( &
-       & xy_SurfTempRecv, xy_SurfAlbedoRecv, xy_SeaIceConcRecv, xy_SurfSnowRecv  &
+       & xy_SurfTempRecv, xy_SurfAlbedoRecv, xy_SeaIceConcRecv, xy_SurfSnowRecv,  &
+       & xy_SfcEngyFlxModRecv                                                     &
        & )
+    use constants, only: Grav, CpDry
+    
     real(DP), intent(in), optional :: xy_SurfTempRecv(0:iMax-1,jMax)
     real(DP), intent(in), optional :: xy_SurfAlbedoRecv(0:iMax-1,jMax)
     real(DP), intent(in), optional :: xy_SeaIceConcRecv(0:iMax-1,jMax)
     real(DP), intent(in), optional :: xy_SurfSnowRecv(0:iMax-1,jMax)
-    
-    if(present(xy_SurfTempRecv)) xy_SurfTemp(:,:) = xy_SurfTempRecv
+    real(DP), intent(in), optional :: xy_SfcEngyFlxModRecv(0:iMax-1,jMax)
+
+    if(present(xy_SurfTempRecv))  xy_SurfTemp(:,:) = xy_SurfTempRecv
     if(present(xy_SurfAlbedoRecv)) xy_SurfAlbedo(:,:) = xy_SurfAlbedoRecv
     if(present(xy_SeaIceConcRecv)) xy_SeaIceConc(:,:) = xy_SeaIceConcRecv
     if(present(xy_SurfSnowRecv)) xy_SurfSnowB(:,:) = xy_SurfSnowRecv
 
+    if (present(xy_SfcEngyFlxModRecv)) then
+       call AuxVars( &
+            & xy_PsN, xyz_TempN, xyzf_QMixN(:,:,:,IndexH2OVap), & ! (in )
+            & xyr_Press = xyr_Press                             & ! (out) optional
+            & )
+       
+       xyz_TempN(:,:,1) = xyz_TempN(:,:,1) + &
+            & (xy_SfcEngyFlxModRecv(:,:) - 0d0) / (xyr_Press(:,:,0) - xyr_Press(:,:,1)) &
+            & * Grav / CpDry
+    end if
+    
   end subroutine dcpam_UpdateSurfaceProperties
 
   subroutine dcpam_StoreAtmSurfFlxInfo()
@@ -2286,7 +2302,7 @@ if (.not. skip_flag) then
         xy_RainCumulus = 0.0_DP
         xy_SnowCumulus = 0.0_DP
 
-      case ( IDMCMethodMCA )
+      case ( IDMCMethodMCA, IDMCMethodMCAI98 )
 
         if ( IndexH2OLiq <= 0 ) then
           call MessageNotify( 'E', prog_name, &
@@ -2296,12 +2312,20 @@ if (.not. skip_flag) then
         ! 湿潤対流調節
         ! Moist convective adjustment
         !
-        call MoistConvAdjust( &
-          & xyz_TempA, xyzf_QMixA(:,:,:,IndexH2OVap),      & ! (inout)
-          & xyz_Press, xyr_Press,                          & ! (in)
-          & xyz_DQH2OLiqDtCum                              & ! (out)
-          & )
-
+        if ( IDMCMethod == IDMCMethodMCA ) then
+           call MoistConvAdjust( &
+                & xyz_TempA, xyzf_QMixA(:,:,:,IndexH2OVap),      & ! (inout)
+                & xyz_Press, xyr_Press,                          & ! (in)
+                & xyz_DQH2OLiqDtCum                              & ! (out)
+                & )
+        else
+           call MoistConvAdjustI98( &
+                & xyz_TempA, xyzf_QMixA(:,:,:,IndexH2OVap),      & ! (inout)
+                & xyz_Press, xyr_Press,                          & ! (in)
+                & xyz_DQH2OLiqDtCum                              & ! (out)
+                & )
+        end if
+        
         ! It would be better that lines below are included in 
         ! MoistConvAdjust subroutine.
         xyzf_QMixA(:,:,:,IndexH2OLiq) = &
@@ -2783,7 +2807,17 @@ if (.not. skip_flag) then
 
     end select
 
+#ifdef INTH98_MODIFY
+    call VerticalFilterAdjust( &
+         & xyz_UA, xyz_VA, xyz_TempA, &
+         & xy_PsA )
 
+    call SurfPresChangeWithWtVap( &
+         & xy_PsA, xyzf_QMixA(:,:,:,IndexH2Ovap),  &
+         & xy_SurfH2OVapFluxA, xy_Rain + xy_Snow,  &
+         & xy_PsB, xyzf_QMixB(:,:,:,IndexH2Ovap) )
+#endif
+    
     ! 時間フィルター (Asselin, 1972)
     ! Time filter (Asselin, 1972)
     !
@@ -3702,6 +3736,8 @@ endif ! end if for skip_flag
       IDMCMethod = IDMCMethodNone
     case ( 'MCA' )
       IDMCMethod = IDMCMethodMCA
+    case ( 'MCAI98' )
+      IDMCMethod = IDMCMethodMCAI98
     case ( 'RAS' )
       IDMCMethod = IDMCMethodRAS
     case ( 'RASWithIce' )
@@ -4978,7 +5014,7 @@ endif ! end if for skip_flag
       call AuxVarsInit
 
       select case ( IDMCMethod )
-      case ( IDMCMethodMCA )
+      case ( IDMCMethodMCA, IDMCMethodMCAI98 )
         ! 湿潤対流調節
         ! Moist convective adjustment
         !
