@@ -34,7 +34,7 @@ end
 intrv_cyc_couple     = 2.0 * 365.0
 intrv_cyc_standalone = 50.0 * 365.0
 if options[:is_periodic_couple] then
-  intrv_cyc_standalone = options[:interval_cyc].split(",")[1].to_f * 365.0
+  intrv_cyc_standalone = options[:interval_cyc].split(",")[1].to_f #* 365.0
 end
 
 p "cyc_range: #{cyc_start}--#{cyc_end}"

@@ -21,22 +21,26 @@ LIB      = # $(OCNLIB)
 
 TARGETS		= \
 	atm_driver ocn_driver
+
+TARGETS_PE_NAME = \
+	$(ATM_PE_NAME) $(OCN_PE_NAME)
+
 # chm_driver
 
 #---------------------------------------------------------
 
 all: $(TARGETS) $(LIBDIR)/$(COMMONLIB) $(BINDIR)
-	$(INSTALL) $(TARGETS) $(BINDIR)
+	$(INSTALL) $(TARGETS_PE_NAME) $(BINDIR)
 clean:
 	$(RM) $(TRASH)
 realclean: clean
 	$(RM) $(TARGETS)
 
 atm_driver: atm_driver.o $(LIBDIR)/$(ATMLIB)
-	$(LINK.f90) -o $@ $^  $(ATM_LDFLAG) 
+	$(LINK.f90) -o $(ATM_PE_NAME) $^  $(ATM_LDFLAG) 
 
 ocn_driver: ocn_driver.o $(LIBDIR)/$(OCNLIB)
-	$(LINK.f90) -o $@ $^  $(OCN_LDFLAG) 
+	$(LINK.f90) -o $(OCN_PE_NAME) $^  $(OCN_LDFLAG) 
 
 
 #chm_driver: chm_driver.o $(LIBDIR)/$(CHMLIB)

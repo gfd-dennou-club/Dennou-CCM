@@ -7,7 +7,7 @@
 !!
 !!
 module mod_ocn
-  
+   
   ! モジュール引用; Use statements
   !
 
@@ -234,7 +234,8 @@ contains
     my_comp%loop_end_flag = .false.
 
     call DOGCM_Exp_driver_SetInitCond()
-    
+
+    !- 
     call sice_advance_timestep( &
          & my_comp%tstep,          & ! (in)
          & my_comp%loop_end_flag,  & ! (out)
@@ -288,6 +289,8 @@ contains
 !!$    write(*,*) "ocn: TimeLoop, TimeSecN=", TimeSecN
     my_comp%loop_end_flag = .false.
     my_comp%DelTime = TimeSecA - TimeSecN
+
+    write(*,*) "ocn tstep=", my_comp%tstep
     
     do while(.not. my_comp%loop_end_flag)
 
@@ -374,7 +377,7 @@ contains
   end subroutine ocn_fin
 
   !- Private subroutines -----------------------------------------------------------------
-
+  
   subroutine pass_field_ocn2sice()
 
     ! モジュール引用; Use statements
@@ -383,8 +386,11 @@ contains
     use DSIce_main_mod, only: &
          & DSIce_main_update_OcnField
 
+    use DSIce_Boundary_driver_mod, only: &
+         & DSIce_Boundary_driver_UpdateAfterTstep
+    
     use DOGCM_Admin_TInteg_mod, only: &
-         & TIMELV_ID_N
+         & TL_N => TIMELV_ID_N
 
     use DOGCM_Admin_Grid_mod, only: &
          & IS, IE, JS, JE, &
@@ -395,6 +401,11 @@ contains
          & xyza_U, xyza_V,                    &
          & xyzaa_TRC, TRCID_PTEMP, TRCID_SALT
 
+    use DSIce_Admin_Variable_mod, only: &
+         & xya_SIceCon, xya_IceThick, xya_SnowThick, &
+         & xya_SIceSfcTemp, xyza_SIceTemp
+
+    
 !!$    use SpmlUtil_mod, only: w_xy, xy_w    
 !!$    use LPhys_DIFF_spm_mod, only: &
 !!$         & w_Filter
@@ -407,15 +418,24 @@ contains
 !!$    xy_SfcTemp(IS:IE,JS:JE) = xy_w(w_Filter*w_xy(xyzaa_TRC(IS:IE,JS:JE,KS,TRCID_PTEMP,TIMELV_ID_N)))
     
     call DSIce_main_update_OcnField( &
-         & xyzaa_TRC(:,:,KS,TRCID_PTEMP,TIMELV_ID_N),             & ! (in)
+         & xyzaa_TRC(:,:,KS,TRCID_PTEMP,TL_N),      & ! (in)
 !!$         & xy_SfcTemp, & ! (in)
-         & xyzaa_TRC(:,:,KS,TRCID_SALT,TIMELV_ID_N),              & ! (in)
-         & z_KAXIS_Weight(KS)*xy_Topo(:,:),                       & ! (in)
-         & xyza_U(:,:,KS,TIMELV_ID_N), xyza_V(:,:,KS,TIMELV_ID_N) & ! (in)
+         & xyzaa_TRC(:,:,KS,TRCID_SALT,TL_N),       & ! (in)
+         & z_KAXIS_Weight(KS)*xy_Topo(:,:),         & ! (in)
+         & xyza_U(:,:,KS,TL_N), xyza_V(:,:,KS,TL_N) & ! (in)
          & )
 
 !!$    write(*,*) "SSTA=", xyzaa_TRC(IS,JS:JE,KS,TRCID_PTEMP,TIMELV_ID_N)
-    
+
+    if (my_comp%tstep == 0) then
+       !- Call a subroutine in sea-ice model again
+       ! in order to set surface albedo of sea-ice (and ocean) grid
+       call DSIce_Boundary_driver_UpdateAfterTstep( &
+            & xya_SIceCon(:,:,TL_N), xya_IceThick(:,:,TL_N), xya_SnowThick(:,:,TL_N), & ! (in)
+            & xya_SIceSfcTemp(:,:,TL_N), xyza_SIceTemp(:,:,:,TL_N)                    & ! (in)
+            & )
+    end if
+     
   end subroutine pass_field_ocn2sice
 
   !--------------------------------------------------------
@@ -736,6 +756,9 @@ contains
          & xy_SfcAlbedoAI, xy_DelSfcHFlxAI, &
          & xy_SenHFlx
 
+    use DOGCM_Admin_Constants_mod, only: &
+         & UNDEFVAL
+    
     use DOGCM_Boundary_vars_mod, only: &
          & xy_SfcAlbedoAO, xy_SeaSfcTemp
     
@@ -787,7 +810,11 @@ contains
           xy_SfcSnow4Atm(i,j)   = xya_SnowThick(i,j,SICE_TLN)
           xy_SfcEngyFlxMod4Atm(i,j) = xy_DelSfcHFlxAI(i,j)
        else
-          xy_SfcAlbedo4Atm(i,j) = xy_SfcAlbedoAO(i,j)
+          if (xy_SfcAlbedoAI(i,j) /= UNDEFVAL) then
+             xy_SfcAlbedo4Atm(i,j) = xy_SfcAlbedoAI(i,j)             
+          else
+             xy_SfcAlbedo4Atm(i,j) = xy_SfcAlbedoAO(i,j)
+          end if
           xy_SfcTemp4Atm(i,j)   = xy_SeaSfcTemp(i,j)
           xy_SfcSnow4Atm(i,j)   = 0d0 
           xy_SfcEngyFlxMod4Atm(i,j) = 0d0
@@ -798,9 +825,15 @@ contains
     end do
     end do
   
+    write(*,*) "SfcTempA=", xy_SfcTemp4Atm(ISO,JSO:JEO) - 273.15d0
+    write(*,*) "SfcAlbedoA=", xy_SfcAlbedo4Atm(ISO,JSO:JEO)
+!!$    write(*,*) "SfcSnowA=", xy_SfcSnow4Atm(ISO,JSO:JEO)
+!!$    write(*,*) "SfcEngyFlxModA=", xy_SfcEngyFlxMod4Atm(ISO,JSO:JEO)
+     
+!!$    write(*,*) "--------"
     call output_var( TimeSecB, 'a2o_SenHFlx', xy_SenHFlx )
 !!$    call output_var( TimeSecB, 'a2o_SfcHFlxMod', xy_Tmp )
-    
+              
     call ocn_set_send_2d( o2a_SfcTemp_id, xy_SfcTemp4Atm(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( o2a_SfcAlbedo_id, xy_SfcAlbedo4Atm(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( o2a_SfcSnow_id, xy_SfcSnow4Atm(ISO:IEO,JSO:JEO) )
@@ -962,13 +995,13 @@ contains
                   &               + xy_LatHFlx(i,j) + xy_SenHFlx(i,j)   
 
              xy_SfcHFlx0_sr(i,j) = xy_SUwRFlx(i,j) - xy_SDwRFlx(i,j)
-
-
+ 
+ 
              xy_FreshWtFlxS0(i,j) = (   (xy_RainFall(i,j) + xy_SnowFall(i,j)) &
                   &                   - xy_LatHFlx(i,j)/LatentHeat            &
                   &                 )/DensFreshWater
              xy_FreshWtFlx0(i,j) = xy_FreshWtFlxS0(i,j)
-
+ 
              ! For sea-ice model
              xy_WindStressXAI(i,j) = xy_WindStressXAO(i,j)
              xy_WindStressYAI(i,j) = xy_WindStressYAO(i,j)           
@@ -978,9 +1011,9 @@ contains
           end do
        end do
     end if
-     
+         
     call DOGCM_IO_History_HistPut( 'a2o_InputMass', AvrLonLat_xy(xy_FreshWtFlxS0(ISO:IEO,JSO:JEO))*1d3)
-    
+      
   contains
     subroutine ocn_get_write(vargID, vargName, xy_getdata)
       integer, intent(in) :: vargID

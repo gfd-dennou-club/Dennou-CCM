@@ -71,8 +71,8 @@ def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ova
   for i in BeginCombineCyc..EndCombineCyc
     p "#{i}." if i%10 == 0
     p "#{TargetDir}\/cycle#{i}-couple\/#{ncname}"
-    gphys = GPhys::IO.open(/#{TargetDir}\/cycle#{i}-couple\/#{ncname}/, varname)
-#    gphys = GPhys::IO.open("#{TargetDir}\/cycle#{i}-couple\/#{ncname}", varname)
+#    gphys = GPhys::IO.open(/#{TargetDir}\/cycle#{i}-couple\/#{ncname}/, varname)
+    gphys = GPhys::IO.open("#{TargetDir}/cycle#{i}-couple/#{ncname}", varname)
 #    p gphys
 
     gphys = gphys.cut(cutOpt) if cutOpt.length > 0
@@ -114,7 +114,7 @@ end
 
 def combine_ncfile_xmean_open(ncvarname, varname=ncvarname, ovarname=ncvarname, cutOpt={})
   p "combine & xmean (var=#{varname}).."
-  merge_ncfile("#{ncvarname}_rank(\\d\\d\\d\\d\\d\\d).nc", varname, ovarname, cutOpt, ["lon"])
+  merge_ncfile("#{ncvarname}.nc", varname, ovarname, cutOpt, ["lon"])
 
   p "open #{varname}.nc@#{varname} .."
   return GPhys::IO.open(ovarname+".nc", ovarname)
@@ -131,7 +131,7 @@ def sfctemp_xmean_tserise_fig(sfctemp,itr=1)
   else
     sfctemp_min = 180; sfctemp_max = 320; sfctemp_int = 5
   end
-  
+
   GGraph::tone_and_contour( sfctemp, true, "titl"=>"SfcTemp",
                             "int"=>sfctemp_int, "max"=>sfctemp_max, "min"=>sfctemp_min, "exchange"=>true )
   GGraph.color_bar("charfact"=>0.75, "vlength"=>0.25)
@@ -145,19 +145,39 @@ def tempLowerLyr_xmean_tserise_fig(temp,itr=1)
 
   case ClimateState
   when CLIMATE_SNOWBALL then
-    temp_min = 180; temp_max = 320; temp_int = 5
+    temp_min = 271; temp_max = 275; temp_int = 0.1
   when CLIMATE_RUNAWAY then
-    temp_min = 250; temp_max = 450; temp_int = 5
+    temp_min = 271; temp_max = 300; temp_int = 1
   else
-    temp_min = 180; temp_max = 320; temp_int = 5
+    temp_min = 271; temp_max = 280; temp_int = 0.2
   end
   
-  GGraph::tone_and_contour( temp, true, "titl"=>"Temp (sigma=0.9)",
+  GGraph::tone_and_contour( temp, true, "titl"=>"PTemp (depth 5 km)",
                             "int"=>temp_int, "max"=>temp_max, "min"=>temp_min, "exchange"=>true )
   GGraph.color_bar("charfact"=>0.75, "vlength"=>0.25)
   DCL.grcls
 
-  rename_pngfile("TempSig0.9XMean_tserise") if FlagOutputIMG
+  rename_pngfile("PTempSig1.0XMean_tserise") if FlagOutputIMG
+end
+
+def tempMiddleLyr_xmean_tserise_fig(temp,itr=1)
+  prep_dcl(1,itr,10)
+
+  case ClimateState
+  when CLIMATE_SNOWBALL then
+    temp_min = 271; temp_max = 280; temp_int = 0.25
+  when CLIMATE_RUNAWAY then
+    temp_min = 271; temp_max = 320; temp_int = 1
+  else
+    temp_min = 271; temp_max = 290; temp_int = 0.5
+  end
+  
+  GGraph::tone_and_contour( temp, true, "titl"=>"PTemp (depth 2.5km)",
+                            "int"=>temp_int, "max"=>temp_max, "min"=>temp_min, "exchange"=>true )
+  GGraph.color_bar("charfact"=>0.75, "vlength"=>0.25)
+  DCL.grcls
+
+  rename_pngfile("PTempSig0.5XMean_tserise") if FlagOutputIMG
 end
 
 def tempUpperLyr_xmean_tserise_fig(temp,itr=1)
@@ -165,32 +185,31 @@ def tempUpperLyr_xmean_tserise_fig(temp,itr=1)
 
   case ClimateState
   when CLIMATE_SNOWBALL then
-    temp_min = 80; temp_max = 220; temp_int = 5
+    temp_min = 271; temp_max = 290; temp_int = 0.5
   when CLIMATE_RUNAWAY then
-    temp_min = 250; temp_max = 450; temp_int = 5
+    temp_min = 271; temp_max = 350; temp_int = 2
   else
-    temp_min = 150; temp_max = 290; temp_int = 5
+    temp_min = 271; temp_max = 310; temp_int = 1
   end
   
-  GGraph::tone_and_contour( temp, true, "titl"=>"Temp (sigma=0.3)",
+  GGraph::tone_and_contour( temp, true, "titl"=>"PTemp (depth 0.5km)",
                             "int"=>temp_int, "max"=>temp_max, "min"=>temp_min, "exchange"=>true )
   GGraph.color_bar("charfact"=>0.75, "vlength"=>0.25)
   DCL.grcls
 
-  rename_pngfile("TempSig0.3XMean_tserise") if FlagOutputIMG
+  rename_pngfile("PTempSig0.1XMean_tserise") if FlagOutputIMG
 end
 
-
-sfctemp = combine_ncfile_xmean_open(SfcTempVarName, SfcTempVarName, "SurfTempXMean")
-sfctemp_xmean_tserise_fig(sfctemp)
-
-tempLowerLyr = combine_ncfile_xmean_open("^Temp", "Temp", "TempSig0.9XMean", {"sig"=>0.9})
+tempLowerLyr = combine_ncfile_xmean_open("PTemp", "PTemp", "PTempSig1.0XMean", {"sig"=>-1.0})
 tempLowerLyr_xmean_tserise_fig(tempLowerLyr)
 
-tempUpperLyr = combine_ncfile_xmean_open("^Temp", "Temp", "TempSig0.3XMean", {"sig"=>0.3})
+tempMiddleLyr = combine_ncfile_xmean_open("PTemp", "PTemp", "PTempSig0.5XMean", {"sig"=>-0.5})
+tempMiddleLyr_xmean_tserise_fig(tempMiddleLyr)
+
+tempUpperLyr = combine_ncfile_xmean_open("PTemp", "PTemp", "PTempSig0.1XMean", {"sig"=>-0.1})
 tempUpperLyr_xmean_tserise_fig(tempUpperLyr)
 
-["SurfTemp", "TempSig0.9", "TempSig0.3"].each{|ovarname|
+["PTempSig0.9", "PTempSig0.5", "PTempSig0.1"].each{|ovarname|
   ncpath = DistDir+"/#{ovarname}XMean.nc"
-  FileUtils::rm_f(ncpath) if FileTest::exist?(ncpath)
+#  FileUtils::rm_f(ncpath) if FileTest::exist?(ncpath)
 }

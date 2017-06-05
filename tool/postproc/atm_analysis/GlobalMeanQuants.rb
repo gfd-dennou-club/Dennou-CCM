@@ -29,7 +29,7 @@ AxisDef = DCPAMUtil::AxisNameDef
 
 @dcpamUtil = DCPAMUtil.new(PlanetName,"#{CurrentDir}/#{VarDef::U}.nc")
 
-#=begin
+=begin
 o2d_varList = [ "SurfTemp", "SurfAlbedo" ]
 varList = [ 
 	"PRCP", 
@@ -40,15 +40,15 @@ varList = [
         "EvapU"
 ]
 p varList
-#=end
-=begin
+=end
+#=begin
 o2d_varList = [ "o2d_SfcTemp", "o2d_SfcAlbedo" ]
 varList = [ 
 	"PRCP", 
 	"OLRA", "OSRA",
 	"SSRA", "SLRA", "SensA", "EvapA"
 ]
-=end
+#=end
 gp_PRCP, \
 gp_OLR, gp_OSR, \
 gp_SSR, gp_SLR, gp_Sens, gp_Evap  = GPhysUtil.get_GPhysObjs(varList, CurrentDir, nil, "_rank*")

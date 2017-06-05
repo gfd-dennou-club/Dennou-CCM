@@ -54,7 +54,7 @@ def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ova
   for i in BeginCombineCyc..EndCombineCyc
     p "#{i}." if i%10 == 0
     p "#{TargetDir}\/cycle#{i}-couple\/#{ncname}"
-    gphys = GPhys::IO.open(/#{TargetDir}\/cycle#{i}-couple\/#{ncname}/, varname)
+    gphys = GPhys::IO.open("#{TargetDir}/cycle#{i}-couple/#{ncname}", varname)
 #    gphys = GPhys::IO.open("#{TargetDir}\/cycle#{i}-couple\/#{ncname}", varname)
 #    p gphys
 
@@ -66,7 +66,7 @@ def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ova
       when "time"
       when "sig"
         gp_sig_weight = GPhys::IO.open("#{TargetDir}/cycle#{i}-couple/U.nc", "sig_weight") 
-        gp_ps = GPhys::IO.open(/#{TargetDir}\/cycle#{i}-couple\/Ps_rank(\d\d\d\d\d\d).nc/, "Ps")
+        gp_ps = GPhys::IO.open(/#{TargetDir}\/cycle#{i}-couple\/H.nc/, "H")
         gphys = gp_ps/Grav*(gphys*gp_sig_weight).sum("sig")
       else
         gphys = gphys.mean(opt)
@@ -96,35 +96,26 @@ def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ova
 end
 
 #=begin
-merge_ncfile("OLRA_rank(\\d\\d\\d\\d\\d\\d).nc", "OLRA", "OLRA", {}, ["lon","time"])
-merge_ncfile("OSRA_rank(\\d\\d\\d\\d\\d\\d).nc", "OSRA", "OSRA", {}, ["lon","time"])
-merge_ncfile("SLRA_rank(\\d\\d\\d\\d\\d\\d).nc", "SLRA", "SLRA", {}, ["lon","time"])
-merge_ncfile("SSRA_rank(\\d\\d\\d\\d\\d\\d).nc", "SSRA", "SSRA", {}, ["lon","time"])
-
-merge_ncfile("EvapA_rank(\\d\\d\\d\\d\\d\\d).nc", "EvapA", "LatHFlxA", {}, ["lon","time"])
-merge_ncfile("SensA_rank(\\d\\d\\d\\d\\d\\d).nc", "SensA", "SenHFlxA", {}, ["lon","time"])
-
-merge_ncfile("TauX_rank(\\d\\d\\d\\d\\d\\d).nc", "TauX", "TauX", {}, ["lon","time"])
-merge_ncfile("TauY_rank(\\d\\d\\d\\d\\d\\d).nc", "TauY", "TauY", {}, ["lon","time"])
-
-merge_ncfile("PRCP_rank(\\d\\d\\d\\d\\d\\d).nc", "PRCP", "PRCP", {}, ["lon","time"])
-
-merge_ncfile("Ps_rank(\\d\\d\\d\\d\\d\\d).nc", "Ps", "Ps", {}, ["lon","time"])
-merge_ncfile("#{SfcTempVarName}_rank(\\d\\d\\d\\d\\d\\d).nc", SfcTempVarName, "SfcTemp", {}, ["lon","time"])
-
-merge_ncfile("^Temp_rank(\\d\\d\\d\\d\\d\\d).nc", "Temp", "Temp", {}, ["lon","time"])
-merge_ncfile("U_rank(\\d\\d\\d\\d\\d\\d).nc", "U", "U", {}, ["lon","time"])
-merge_ncfile("V_rank(\\d\\d\\d\\d\\d\\d).nc", "V", "V", {}, ["lon","time"])
-merge_ncfile("QH2OVap_rank(\\d\\d\\d\\d\\d\\d).nc", "QH2OVap", "QH2OVap", {}, ["lon","time"])
-merge_ncfile("SigDot_rank(\\d\\d\\d\\d\\d\\d).nc", "SigDot", "SigDot", {}, ["lon","time"])
-merge_ncfile("Diagnos(\\w).nc", "MSF", "MSF", {}, ["time"])
-
+merge_ncfile("U.nc", "U", "U", {}, ["lon","time"])
+merge_ncfile("V.nc", "V", "V", {}, ["lon","time"])
+merge_ncfile("OMG.nc", "OMG", "OMG", {}, ["lon","time"])
+merge_ncfile("PTemp.nc", "PTemp", "PTemp", {}, ["lon","time"])
+merge_ncfile("Salt.nc", "Salt", "Salt", {}, ["lon","time"])
+merge_ncfile("MSF.nc", "MSF", "MSF", {}, ["lon","time"])
 #=end
-#merge_ncfile("QH2OVap_rank(\\d\\d\\d\\d\\d\\d).nc", "QH2OVap", "PWV", {}, ["sig", "lon","time"])
 
+merge_ncfile("SfcHFlxO.nc", "SfcHFlxO", "SfcHFlxO", {}, ["lon", "time"])
+
+#=begin
 if TargetDataList.include?("EngyFlxLat") then
-  merge_ncfile("EngyFl(\\w).nc", "dryStatEnFlxLat", "dryStatEnFlxLat", {}, ["time"])
-  merge_ncfile("EngyFl(\\w).nc", "moistStatEnFlxLat", "moistStatEnFlxLat", {}, ["time"])
-  merge_ncfile("EngyFl(\\w).nc", "latentEnFlxLat", "latentEnFlxLat", {}, ["time"])
+  merge_ncfile("diag/TotHT.nc", "TotHT", "TotHT", {}, ["time"])
+  merge_ncfile("diag/EulerHT.nc", "EulerHT", "EulerHT", {}, ["time"])
+  merge_ncfile("diag/IsoDiffHT.nc", "IsoDiffHT", "IsoDiffHT", {}, ["time"])
+  merge_ncfile("diag/BolusHT.nc", "BolusHT", "BolusHT", {}, ["time"])
 end
 
+if TargetDataList.include?("Stability") then
+  merge_ncfile("diag/DensPot.nc", "DensPot", "DensPot", {}, ["lon", "time"])
+  merge_ncfile("diag/BVFreq.nc", "BVFreq", "BVFreq", {}, ["lon", "time"])
+end
+#=end

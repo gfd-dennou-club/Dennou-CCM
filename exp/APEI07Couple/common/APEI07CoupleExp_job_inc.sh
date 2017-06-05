@@ -28,6 +28,7 @@ ${KMAXGSVF:=31}
 ${HistIntValueDayCPLRun:=146}
 ${HistIntValueDaySTDAloneRun:=1825}
 ${coupledStartDay:=0}
+${SIceHDiffCoef:=300}
 
 ${IniSolarConst:=$SolarConst}
 ${EndSolarConst:=$SolarConst}
@@ -140,6 +141,7 @@ EOF
      s!#BoundaryCondition_nml_ThermBCSurface#!PrescFlux!g;
      s!#BoundaryCondition_nml_SaltBCSurface#!PrescFlux!g;
      s!#Constants_nml_RefSalt#!${OcnRefSalt}d0!g;
+     s!#SeaIce_Admin_Constants_nml_SIceHDiffCoef#!${SIceHDiffCoef}!g;
      s!#Exp_APECoupleClimate_nml_RunCycle#!${n}!g;
      s!#Exp_APECoupleClimate_nml_RunTypeName#!Coupled!g;
      s!#Exp_APECoupleClimate_nml_OcnInitSalt#!${OcnRefSalt}d0!g;
@@ -217,6 +219,7 @@ EOF
       s!#BoundaryCondition_nml_ThermBCSurface#!PrescFlux_Han1984!g;
       s!#BoundaryCondition_nml_SaltBCSurface#!PrescFlux!g;
       s!#Constants_nml_RefSalt#!${OcnRefSalt}d0!g;
+      s!#SeaIce_Admin_Constants_nml_SIceHDiffCoef#!${SIceHDiffCoef}!g;
       s!#Exp_APECoupleClimate_nml_RunCycle#!${n}!g;
       s!#Exp_APECoupleClimate_nml_RunTypeName#!Standalone!g;
       s!#Exp_APECoupleClimate_nml_OcnInitSalt#!${OcnRefSalt}d0!g;

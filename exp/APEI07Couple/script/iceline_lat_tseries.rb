@@ -6,7 +6,7 @@ include NumRu
 opt = OptionParser.new
 options = {}
 opt.on("-c", "--cyc_range <param>",  "the range of cycle"){|v| options[:cyc_range] = v}
-#opt.on("-r", "--run_rb_cyc_range <param>",  "the range of cycle over which the searching of iceline latitude is performed."){|v| options[:run_rb_cyc_range] = v}
+opt.on("-r", "--run_rb_cyc_range <param>",  "the range of cycle over which the searching of iceline latitude is performed."){|v| options[:run_rb_cyc_range] = v}
 opt.on("-v", "--var_name <param>",  "variable name of surface temperature"){|v| options[:var_name] = v}
 opt.on("-p", "--periodic_coupling",  "the periodic coupling moode is used."){|v| options[:is_periodic_couple] = v}
 opt.on("-i", "--interval_cyc <param>", "the interval of each cycle. (day)"){|v| options[:interval_cyc] = v}
@@ -19,12 +19,13 @@ if options[:cyc_range] != nil then
   cyc_end   = options[:cyc_range].split(":")[1].to_i
 end
 
-#run_rb_cyc_start = 1
-#run_rb_cyc_end   = 1
-#if options[:run_rb_cyc_range] != nil then
-#  run_rb_cyc_start = options[:run_rb_cyc_range].split(":")[0].to_i
-#  run_rb_cyc_end   = options[:run_rb_cyc_range].split(":")[1].to_i
-#end
+run_rb_cyc_start = cyc_start
+run_rb_cyc_end   = cyc_end
+if options[:run_rb_cyc_range] != nil then
+  run_rb_cyc_start = options[:run_rb_cyc_range].split(":")[0].to_i
+  run_rb_cyc_end   = options[:run_rb_cyc_range].split(":")[1].to_i
+end
+
 intrv_cyc_couple     = 2.0 * 365.0
 intrv_cyc_standalone = 50.0 * 365.0
 if options[:interval_cyc] != nil then
@@ -39,8 +40,8 @@ end
 
 TARGET_DIR=Dir.pwd
 
-BeginRBCyc=cyc_start
-EndRBCyc=cyc_end
+BeginRBCyc=run_rb_cyc_start
+EndRBCyc=run_rb_cyc_end
 BeginCombineCyc=cyc_start
 EndCombineCyc=cyc_end
 
@@ -81,7 +82,7 @@ def combine_ncfile(beginCyc, endCyc, ofname, ifname, varname, modes)
   
   (beginCyc..endCyc).each{|i|
     modes.each{|mode|
-      fname = "tmp#{i}-iceline_lat.nc" # "cycle#{i}-#{mode}/#{ifname}"
+      fname = TARGET_DIR+"/cycle#{i}-couple/iceline_lat.nc" # "cycle#{i}-#{mode}/#{ifname}"
       if !File.exist?(fname) then
         p "#{fname} is not found. Check!"
       end
@@ -131,7 +132,7 @@ def extract_iceline(cycle, varname)
   gp_Tg_dev     = gp_Tg_meanlon - ICELINE_TEMP
   gp_sign_check = gp_Tg_dev[1..latlen-1,true]*gp_Tg_dev[0..latlen-2,true]
     
-  ofile = NetCDF.create("tmp#{cycle}-iceline_lat.nc")
+  ofile = NetCDF.create(TARGET_DIR+"/cycle#{cycle}-couple/iceline_lat.nc")
 
   gp_iceline = GPhys.new(
     Grid.new(time_axis),
@@ -156,9 +157,19 @@ def extract_iceline(cycle, varname)
         tmp_icelat = ( (gp_Tg_dev.val[j+1,n].abs*lat_axis.pos[j] + gp_Tg_dev.val[j,n].abs*lat_axis.pos[j+1]) / (gp_Tg_dev.val[j,n] - gp_Tg_dev.val[j+1,n]).abs ).abs
 
         if lat_axis.pos.val[j] > 0.0 then
-          icelat_nh = tmp_icelat
+          if (gp_Tg_dev[j,n] < gp_Tg_dev[j+1,n]) and (icelat_sh == 90.0) then
+            icelat_sh = 0.0
+            p "accross eq.."
+          else
+            icelat_nh = tmp_icelat
+          end
         else
-          icelat_sh = tmp_icelat
+          if gp_Tg_dev[j,n] > gp_Tg_dev[j+1,n] then
+            icelat_nh = 0.0
+            p "accross eq.."
+          else
+            icelat_sh = tmp_icelat
+          end
         end
       end
     end
@@ -171,6 +182,7 @@ def extract_iceline(cycle, varname)
 
     gp_Tg_glmean[n] = ((gp_Tg_meanlon[true,n]*gp_lat_weight).sum * 0.5).to_f
     p "n=#{n} iceline=#{gp_iceline.val[n]},  sfctemp=#{gp_Tg_glmean.val[n]}"
+#    p "nh=", icelat_nh, "sh=", icelat_sh
   end
   
   GPhys::IO.write(ofile, gp_iceline)
@@ -194,4 +206,4 @@ end
 #exec_cmd("gpcat -o sfctemp_glmean.nc -v SfcTemp tmp*-iceline_lat.nc")
 combine_ncfile(BeginCombineCyc, EndCombineCyc, "sfctemp_glmean.nc", "tmp*-iceline_lat.nc", "SfcTemp", ["couple"])
 
-FileUtils::rm_f(Dir.glob("tmp*-iceline_lat.nc"))
+#FileUtils::rm_f(Dir.glob("tmp*-iceline_lat.nc"))
