@@ -29,19 +29,31 @@ AxisDef = DCPAMUtil::AxisNameDef
 
 @dcpamUtil = DCPAMUtil.new(PlanetName,"#{CurrentDir}/#{VarDef::U}.nc")
 
+=begin
+o2d_varList = [ "SurfTemp", "SurfAlbedo" ]
+varList = [ 
+	"PRCP", 
+	"OLRA", "OSRA",
+	"SSRA",
+        "SLRA",
+        "SensA",
+        "EvapU"
+]
+p varList
+=end
+#=begin
 o2d_varList = [ "o2d_SfcTemp", "o2d_SfcAlbedo" ]
-
 varList = [ 
 	"PRCP", 
 	"OLRA", "OSRA",
 	"SSRA", "SLRA", "SensA", "EvapA"
 ]
-
+#=end
 gp_PRCP, \
 gp_OLR, gp_OSR, \
-gp_SSR, gp_SLR, gp_Sens, gp_Evap  = GPhysUtil.get_GPhysObjs(varList, CurrentDir)
+gp_SSR, gp_SLR, gp_Sens, gp_Evap  = GPhysUtil.get_GPhysObjs(varList, CurrentDir, nil, "_rank*")
 
-gp_SfcTemp, gp_SfcAlbedo = GPhysUtil.get_GPhysObjs(o2d_varList, CurrentDir)
+gp_SfcTemp, gp_SfcAlbedo = GPhysUtil.get_GPhysObjs(o2d_varList, CurrentDir, nil, "_rank*")
 time_pos = gp_OLR.axis("time").pos
 gp_SfcTemp = gp_SfcTemp.interpolate(time_pos)
 gp_SfcAlbedo = gp_SfcAlbedo.interpolate(time_pos)

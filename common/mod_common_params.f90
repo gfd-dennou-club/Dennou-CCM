@@ -43,18 +43,19 @@ module mod_common_params
   
   character(*), parameter :: ATM_GRID_2D = "atm_grid_2d"
 !!$  character(*), parameter :: ATM_GRID_3D = "atm_grid_3d"
-  integer, parameter :: NUM_ATM_GMAPTAG  = 1 ! 2
+  integer, parameter :: NUM_ATM_GMAPTAG  = 2
 
   character(*), parameter :: LAND_GRID   = "land_grid"
 
   character(*), parameter :: OCN_GRID_2D  = "ocn_grid_2d"
-  integer, parameter :: NUM_OCN_GMAPTAG  = 1 ! 2
+  integer, parameter :: NUM_OCN_GMAPTAG   = 2
 
   character(*), parameter :: SICE_GRID   = "sice_grid"
 
   character(*), parameter :: CHM_GRID    = "chm_grid"  
 
-  integer, parameter :: GMAPTAG_ATM2D_OCN2D = 1
+  integer, parameter :: GMAPTAG_ATM2D_OCN2D          = 1
+  integer, parameter :: GMAPTAG_ATM2D_OCN2D_CONSERVE = 2
 
   integer, parameter :: ATM_NUM_GRIDTYPE  = 1
   integer, parameter :: OCN_NUM_GRIDTYPE  = 1
@@ -114,7 +115,10 @@ module mod_common_params
   character(*), parameter :: o2d_SfcSnow     = "o2d_SfcSnow" 
   integer, parameter :: o2d_SfcSnow_id       = 3
 
-  integer, parameter :: NUM_VAR2D_O2A         = 3
+  character(*), parameter :: o2d_SfcEngyFlxMod = "o2d_SfcEngyFlxMod" 
+  integer, parameter :: o2d_SfcEngyFlxMod_id   = 4
+  
+  integer, parameter :: NUM_VAR2D_O2A          = 4
   
   !* Ocean -> Sea-ice *******************************************
   
@@ -140,6 +144,7 @@ module mod_common_params
   integer :: o2a_SfcTemp_id                   = 1
   integer :: o2a_SfcAlbedo_id                 = 2
   integer :: o2a_SfcSnow_id                   = 3
+  integer :: o2a_SfcEngyFlxMod_id             = 4
   
   
   !* Atmosphere -> Ocean(, Sea-ice)

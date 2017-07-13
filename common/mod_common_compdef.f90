@@ -77,7 +77,13 @@ module mod_common_compdef
   type(ComponentDef), public, pointer :: CompDef_own => null()
   
   character(STRING), public :: GMAPFILENAME_AO
+  character(STRING), public :: GMAPFILENAME_AO_CONSERVE
   character(STRING), public :: GMAPFILENAME_OA
+  character(STRING), public :: GMAPFILENAME_OA_CONSERVE
+  character(STRING), public :: GMAPFILENAME_AS
+  character(STRING), public :: GMAPFILENAME_AS_CONSERVE
+  character(STRING), public :: GMAPFILENAME_SA
+  character(STRING), public :: GMAPFILENAME_SA_CONSERVE
     
   integer, public :: AO_COUPLING_CYCLE_SEC
 !  integer, public :: OA_COUPLING_CYCLE_SEC
@@ -225,9 +231,15 @@ contains
     ! Local variables
     !    
     NAMELIST /PARAM_DCCM_COMMON/   &
-         & AO_COUPLING_CYCLE_SEC,  &
-         & GMAPFILENAME_AO,        &
-         & GMAPFILENAME_OA
+         & AO_COUPLING_CYCLE_SEC,    &
+         & GMAPFILENAME_AO,          &
+         & GMAPFILENAME_OA,          &
+         & GMAPFILENAME_SA,          &
+         & GMAPFILENAME_AS,          &
+         & GMAPFILENAME_AO_CONSERVE, &
+         & GMAPFILENAME_OA_CONSERVE, &
+         & GMAPFILENAME_AS_CONSERVE, &
+         & GMAPFILENAME_SA_CONSERVE
 
 
     integer :: unit_nml
@@ -238,6 +250,14 @@ contains
     
     GMAPFILENAME_OA = 'gmap-OCN_Pl42-ATM_T42.dat'
     GMAPFILENAME_AO = 'gmap-ATM_T42-OCN_Pl42.dat'
+    GMAPFILENAME_AS = 'gmap-ATM_T42-SFC_Pl42.dat'
+    GMAPFILENAME_SA = 'gmap-SFC_Pl42-ATM_T42.dat'
+
+    GMAPFILENAME_OA_CONSERVE = 'gmap-OCN_Pl42-ATM_T42_CONSERVE.dat'
+    GMAPFILENAME_AO_CONSERVE = 'gmap-ATM_T42-OCN_Pl42_CONSERVE.dat'
+    GMAPFILENAME_SA_CONSERVE = 'gmap-SFC_Pl42-ATM_T42_CONSERVE.dat'
+    GMAPFILENAME_AS_CONSERVE = 'gmap-ATM_T42-SFC_Pl42_CONSERVE.dat'
+    
     AO_COUPLING_CYCLE_SEC = 7200
     
     ! NAMELIST からの入力
@@ -256,8 +276,14 @@ contains
     end if
 
     call MessageNotify( 'M', module_name, "AO_COUPLING_CYCLE_SEC=%d [sec]  ", i=(/ AO_COUPLING_CYCLE_SEC /))
-    call MessageNotify( 'M', module_name, "GMAPFILENAME_OA =%a             ", ca=(/ GMAPFILENAME_OA /) )
-    call MessageNotify( 'M', module_name, "GMAPFILENAME_AO =%a             ", ca=(/ GMAPFILENAME_AO /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_OA =%a             ", ca=(/ GMAPFILENAME_OA          /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_AO =%a             ", ca=(/ GMAPFILENAME_AO          /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_SA =%a             ", ca=(/ GMAPFILENAME_SA          /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_AS =%a             ", ca=(/ GMAPFILENAME_AS          /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_OA_CONSERVE =%a    ", ca=(/ GMAPFILENAME_OA_CONSERVE /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_AO_CONSERVE =%a    ", ca=(/ GMAPFILENAME_AO_CONSERVE /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_SA_CONSERVE =%a    ", ca=(/ GMAPFILENAME_SA_CONSERVE /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_AS_CONSERVE =%a    ", ca=(/ GMAPFILENAME_AS_CONSERVE /) )
         
   end subroutine common_read_config
   

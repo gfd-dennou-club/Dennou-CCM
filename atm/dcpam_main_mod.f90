@@ -27,7 +27,7 @@ module dcpam_main_mod
   ! 力学過程 (スペクトル法, Arakawa and Suarez (1983))
   ! Dynamical process (Spectral method, Arakawa and Suarez (1983))
   !
-  use dynamics_hspl_vas83, only: DynamicsHsplVAS83
+  use dynamics_hspl_vas83, only: DynamicsHsplVAS83, VerticalFilterAdjust, SurfPresChangeWithWtVap
 
   ! 物理過程のみの計算のための力学過程
   ! A dynamics for calculation with physical processes only
@@ -131,7 +131,7 @@ module dcpam_main_mod
   ! 積雲パラメタリゼーション (対流調節)
   ! Cumulus parameterization (convection adjust)
   !
-  use moist_conv_adjust, only: MoistConvAdjust
+  use moist_conv_adjust, only: MoistConvAdjust, MoistConvAdjustI98
 
   ! Relaxed Arakawa-Schubert scheme
   ! Relaxed Arakawa-Schubert scheme
@@ -391,6 +391,7 @@ module dcpam_main_mod
   !
   use output_freq_used_vars, only : OutputFreqUsedVars
 
+  use ProfUtil_mod
 
   ! 宣言文 ; Declaration statements
   !
@@ -499,6 +500,7 @@ module dcpam_main_mod
   real(DP), allocatable:: xy_SurfTemp (:,:)
                               ! 地表面温度 (K)
                               ! Surface temperature (K)
+  
   real(DP), allocatable:: xyz_SoilTemp(:,:,:)
                               ! 土壌温度 (K)
                               ! Soil temperature (K)
@@ -799,6 +801,7 @@ module dcpam_main_mod
        & xy_LDWRFlxAtm, xy_LUWRFlxAtm, xy_SDWRFlxAtm, xy_SUWRFlxAtm, &
        & xy_SurfAirTemp, xy_DSurfHFlxDTs, xy_DSurfLatentFlxDTs, &
        & xy_RainAtm, xy_SnowAtm
+
   
   ! 作業変数
   ! Work variables
@@ -861,6 +864,7 @@ module dcpam_main_mod
   integer, parameter:: IDMCMethodMCA         = 31
   integer, parameter:: IDMCMethodRAS         = 32
   integer, parameter:: IDMCMethodRASWithIce  = 33
+  integer, parameter:: IDMCMethodMCAI98      = 34
 
   integer           :: IDLSCMethod               ! 大規模凝結 (非対流性凝結) の計算方法
                                                  ! Method for large scale condensation
@@ -919,6 +923,8 @@ module dcpam_main_mod
 
 
   integer :: MPI_MY_COMM
+
+  real(DP) :: WtMassA, WtMassB
   
 contains
 
@@ -939,18 +945,33 @@ contains
 
   ! Interface for coupler to update variables of surface properties in DCPAM.
   subroutine dcpam_UpdateSurfaceProperties( &
-       & xy_SurfTempRecv, xy_SurfAlbedoRecv, xy_SeaIceConcRecv, xy_SurfSnowRecv  &
+       & xy_SurfTempRecv, xy_SurfAlbedoRecv, xy_SeaIceConcRecv, xy_SurfSnowRecv,  &
+       & xy_SfcEngyFlxModRecv                                                     &
        & )
+    use constants, only: Grav, CpDry
+    
     real(DP), intent(in), optional :: xy_SurfTempRecv(0:iMax-1,jMax)
     real(DP), intent(in), optional :: xy_SurfAlbedoRecv(0:iMax-1,jMax)
     real(DP), intent(in), optional :: xy_SeaIceConcRecv(0:iMax-1,jMax)
     real(DP), intent(in), optional :: xy_SurfSnowRecv(0:iMax-1,jMax)
-    
-    if(present(xy_SurfTempRecv)) xy_SurfTemp(:,:) = xy_SurfTempRecv
+    real(DP), intent(in), optional :: xy_SfcEngyFlxModRecv(0:iMax-1,jMax)
+
+    if(present(xy_SurfTempRecv))  xy_SurfTemp(:,:) = xy_SurfTempRecv
     if(present(xy_SurfAlbedoRecv)) xy_SurfAlbedo(:,:) = xy_SurfAlbedoRecv
     if(present(xy_SeaIceConcRecv)) xy_SeaIceConc(:,:) = xy_SeaIceConcRecv
     if(present(xy_SurfSnowRecv)) xy_SurfSnowB(:,:) = xy_SurfSnowRecv
 
+    if (present(xy_SfcEngyFlxModRecv)) then
+       call AuxVars( &
+            & xy_PsB, xyz_TempB, xyzf_QMixB(:,:,:,IndexH2OVap), & ! (in )
+            & xyr_Press = xyr_Press                             & ! (out) optional
+            & )
+       
+       xyz_TempB(:,:,1) = xyz_TempB(:,:,1) + &
+            & (xy_SfcEngyFlxModRecv(:,:) - 0d0) / (xyr_Press(:,:,0) - xyr_Press(:,:,1)) &
+            & * Grav / CpDry
+    end if
+    
   end subroutine dcpam_UpdateSurfaceProperties
 
   subroutine dcpam_StoreAtmSurfFlxInfo()
@@ -1041,9 +1062,9 @@ contains
 !!$    xy_Tmp = 1d0
 !!$    avr_Tmp = IntLonLat_xy(xy_Rain + xy_Snow)
 !!$    avr_QMixFlx = IntLonLat_xy(xyrf_QMixFlux(:,:,0,IndexH2OVap))
-!!$    avr_QMixFlx2 = IntLonLat_xy(xy_LatentAtm)!/LatentHeat
+!!$    avr_QMixFlx2 = IntLonLat_xy(xy_LatentAtm)/LatentHeat
 !!$    if (myrank == 0) then
-!!$       write(*,*) "QMix Budget=", avr_QMixFlx * LatentHeat / (4d0*acos(-1d0))
+!!$       write(*,*) "QMix net flux=",  avr_QMixFlx / (4d0*acos(-1d0)), avr_QMixFlx2 / (4d0*acos(-1d0))
 !!$    end if
 !!$    
 !!$    avr_QMixFlx = IntLonLat_xy(xyrf_QMixFlux(:,:,0,IndexH2OVap) - xy_SurfHumidCoef*xy_SurfQVapTransCoef*( &
@@ -1078,6 +1099,8 @@ contains
     integer:: i
     integer:: j
     integer:: k
+
+    real(DP) :: xy_Tmp1(0:imax-1,jmax)
     
     ! 時間積分
     ! Time integration
@@ -1086,9 +1109,11 @@ contains
     end_loop_flag = (TimeB >= EndTime)
     if(end_loop_flag) return
 
+    call ProfUtil_RapStart('TimeLoop', 0)
+    
 !    write(*,*) "ATM :advance_timestep..", tstep, TimeN
 if (.not. skip_flag) then    
-
+   
     ! 地表面高度の設定
     ! Set surface height
     !
@@ -1274,6 +1299,7 @@ if (.not. skip_flag) then
       xyr_RadLFlux     = xyr_RadLUwFlux     - xyr_RadLDwFlux
       xyra_DelRadLFlux = xyra_DelRadLUwFlux - xyra_DelRadLDwFlux
 
+      call ProfUtil_RapEnd('Rad', 1)
 
       ! 放射による温度変化率
       ! Temperature tendency with radiation
@@ -1337,6 +1363,7 @@ if (.not. skip_flag) then
         & )
 
 
+      call ProfUtil_RapStart('Rad', 1)      
       select case ( IDRadMethod )
       case ( IDRadMethodDennouAGCM )
 
@@ -1566,7 +1593,9 @@ if (.not. skip_flag) then
       xyr_RadLFlux     = xyr_RadLUwFlux     - xyr_RadLDwFlux
       xyra_DelRadLFlux = xyra_DelRadLUwFlux - xyra_DelRadLDwFlux
 
+      call ProfUtil_RapEnd('Rad', 1)
 
+      call ProfUtil_RapStart('SfcFlx', 1)      
       ! 地表面フラックス
       ! Surface flux
       !
@@ -1616,7 +1645,9 @@ if (.not. skip_flag) then
 !!$          & )
 !!$      end if
 
+      call ProfUtil_RapEnd('SfcFlx', 1)      
 
+      call ProfUtil_RapStart('VDiffMY', 1)      
       ! 鉛直拡散フラックス
       ! Vertical diffusion flux
       !
@@ -1684,8 +1715,10 @@ if (.not. skip_flag) then
       xyr_MomFluxY (:,:,0)   = xy_SurfMomFluxY
       xyr_HeatFlux (:,:,0)   = xy_SurfHeatFlux
       xyrf_QMixFlux(:,:,0,:) = xyf_SurfQMixFlux
+      call ProfUtil_RapEnd('VDiffMY', 1)
 
 
+      call ProfUtil_RapStart('PhysImplSDH', 1)      
       ! 一部の物理過程の時間変化率の計算 (陰解法)
       ! Calculate tendency by a part of physical processes (implicit)
       !
@@ -1917,6 +1950,7 @@ if (.not. skip_flag) then
         xyzf_DQMixDt(:,:,:,IndexTKE) = &
           & xyz_DTurKinEneDt
       end select
+      call ProfUtil_RapEnd('PhysImplSDH', 1)
 
 
       ! Gravity wave drag
@@ -2054,6 +2088,7 @@ if (.not. skip_flag) then
     call dcpam_StoreAtmSurfFlxInfo()
     
 
+    call ProfUtil_RapStart('Dyn', 1)    
     ! 力学過程
     ! Dynamical core
     !
@@ -2089,6 +2124,7 @@ if (.not. skip_flag) then
         & )
       xyz_OMG = 0.0_DP
     end select
+    call ProfUtil_RapEnd('Dyn', 1)
 
 
     ! 地面温度・土壌温度・土壌水分・積雪量の積分
@@ -2252,7 +2288,7 @@ if (.not. skip_flag) then
         & xyz_Height    = xyz_Height                        & ! (out) optional
         & )
 
-
+      call ProfUtil_RapStart('Cloud_Cumulus', 1)
       ! 積雲パラメタリゼーション
       ! Cumulus parameterization
       !
@@ -2268,7 +2304,7 @@ if (.not. skip_flag) then
         xy_RainCumulus = 0.0_DP
         xy_SnowCumulus = 0.0_DP
 
-      case ( IDMCMethodMCA )
+      case ( IDMCMethodMCA, IDMCMethodMCAI98 )
 
         if ( IndexH2OLiq <= 0 ) then
           call MessageNotify( 'E', prog_name, &
@@ -2278,12 +2314,20 @@ if (.not. skip_flag) then
         ! 湿潤対流調節
         ! Moist convective adjustment
         !
-        call MoistConvAdjust( &
-          & xyz_TempA, xyzf_QMixA(:,:,:,IndexH2OVap),      & ! (inout)
-          & xyz_Press, xyr_Press,                          & ! (in)
-          & xyz_DQH2OLiqDtCum                              & ! (out)
-          & )
-
+        if ( IDMCMethod == IDMCMethodMCA ) then
+           call MoistConvAdjust( &
+                & xyz_TempA, xyzf_QMixA(:,:,:,IndexH2OVap),      & ! (inout)
+                & xyz_Press, xyr_Press,                          & ! (in)
+                & xyz_DQH2OLiqDtCum                              & ! (out)
+                & )
+        else
+           call MoistConvAdjustI98( &
+                & xyz_TempA, xyzf_QMixA(:,:,:,IndexH2OVap),      & ! (inout)
+                & xyz_Press, xyr_Press,                          & ! (in)
+                & xyz_DQH2OLiqDtCum                              & ! (out)
+                & )
+        end if
+        
         ! It would be better that lines below are included in 
         ! MoistConvAdjust subroutine.
         xyzf_QMixA(:,:,:,IndexH2OLiq) = &
@@ -2396,8 +2440,10 @@ if (.not. skip_flag) then
 
 
       end select
+      call ProfUtil_RapEnd('Cloud_Cumulus', 1)
 
 
+      call ProfUtil_RapStart('Cloud_Lscond', 1)      
       ! 大規模凝結 (非対流性凝結)
       ! Large scale condensation
       !
@@ -2516,8 +2562,10 @@ if (.not. skip_flag) then
         xyz_DQH2OSolDtLSC = 0.0_DP
 
       end select
+      call ProfUtil_RapEnd('Cloud_Lscond', 1)
 
 
+      call ProfUtil_RapStart('Cloud_clmodel', 1)            
       ! 
       ! Cloud model
       !
@@ -2681,6 +2729,7 @@ if (.not. skip_flag) then
       ! Sum of cumulus and non-convective (large scale) condensation
       xy_Rain = xy_RainCumulus + xy_RainLsc
       xy_Snow = xy_SnowCumulus + xy_SnowLsc
+      call ProfUtil_RapEnd('Cloud_clmodel', 1)      
 
 
       select case ( IDSfcMoistMethod )
@@ -2746,7 +2795,7 @@ if (.not. skip_flag) then
       ! Interpolate temperature on half sigma level, 
       ! and calculate pressure and height
       !
-      call AuxVars( &
+       call AuxVars( &
         & xy_PsA, xyz_TempA, xyzf_QMixA(:,:,:,IndexH2OVap),& ! (in )
         & xyr_Press = xyr_Press                            & ! (out) optional
         & )
@@ -2760,7 +2809,17 @@ if (.not. skip_flag) then
 
     end select
 
+#ifdef INTH98_MODIFY
+    call VerticalFilterAdjust( &
+         & xyz_UA, xyz_VA, xyz_TempA, &
+         & xy_PsA )
 
+    call SurfPresChangeWithWtVap( &
+         & xy_PsA, xyzf_QMixA(:,:,:,IndexH2Ovap),  &
+         & xy_SurfH2OVapFluxA, xy_Rain + xy_Snow,  &
+         & xy_PsB, xyzf_QMixB(:,:,:,IndexH2Ovap) )
+#endif
+    
     ! 時間フィルター (Asselin, 1972)
     ! Time filter (Asselin, 1972)
     !
@@ -2780,10 +2839,13 @@ if (.not. skip_flag) then
 !!$      end select
 !!$    end if
 
+    call ProfUtil_RapStart('TimeAdvance', 1)    
     ! 時間フィルター (Williams, 2009)
     ! Time filter (Williams, 2009)
     !
     if ( .not. flag_initial .or. .not. firstloop ) then
+
+       
       call TimeFilterWilliams2009(                 &
         & xyz_UB, xyz_VB, xyz_TempB, xyzf_QMixB, xy_PsB, &   ! (in)
         & xyz_UN, xyz_VN, xyz_TempN, xyzf_QMixN, xy_PsN, &   ! (inout)
@@ -2902,6 +2964,7 @@ if (.not. skip_flag) then
       xy_SurfSnowN  = xy_SurfSnowA
       xy_SurfSnowA  = 0.0_DP
     end select
+    call ProfUtil_RapEnd('TimeAdvance', 1)    
 
 endif ! end if for skip_flag
  
@@ -2945,6 +3008,8 @@ endif ! end if for skip_flag
   !
   !end do loop_time
 
+    call ProfUtil_RapEnd('TimeLoop', 0)
+    
   end subroutine dcpam_advance_timestep
 
   !-------------------------------------------------------------------
@@ -3673,6 +3738,8 @@ endif ! end if for skip_flag
       IDMCMethod = IDMCMethodNone
     case ( 'MCA' )
       IDMCMethod = IDMCMethodMCA
+    case ( 'MCAI98' )
+      IDMCMethod = IDMCMethodMCAI98
     case ( 'RAS' )
       IDMCMethod = IDMCMethodRAS
     case ( 'RASWithIce' )
@@ -3886,6 +3953,8 @@ endif ! end if for skip_flag
     ! Initialization of modules used in this module
     !
 
+    call ProfUtil_Init( namelist_filename )    
+    call ProfUtil_RapStart('Setup', 0)
 
     ! 時刻管理
     ! Time control
@@ -4947,7 +5016,7 @@ endif ! end if for skip_flag
       call AuxVarsInit
 
       select case ( IDMCMethod )
-      case ( IDMCMethodMCA )
+      case ( IDMCMethodMCA, IDMCMethodMCAI98 )
         ! 湿潤対流調節
         ! Moist convective adjustment
         !
@@ -5104,6 +5173,7 @@ endif ! end if for skip_flag
     !
     ! End of initialization
     !
+    call ProfUtil_RapEnd('Setup', 0)
 
 
     ! 初回だけはオイラー法を用いるため, Δt を半分に
@@ -5182,13 +5252,19 @@ endif ! end if for skip_flag
     !
     use history_file_io, only: HistoryFileClose
 
+    use dc_string, only: CPrintf
+    use mpi_wrapper, only: myrank
+    
     ! 宣言文 ; Declaration statements
     !
     implicit none
 
+    character(STRING) :: profileName
+    
     ! 実行文 ; Executable statement
     !
 
+    call ProfUtil_RapStart('Shutdown', 0)    
     ! リスタートデータファイルクローズ
     ! Close restart data file
     !
@@ -5395,6 +5471,12 @@ endif ! end if for skip_flag
     !
     call TimesetClose
 
+    call ProfUtil_RapEnd('Shutdown', 0)
+
+    ProfileName = CPrintf("dcpam_rank%06d.prof", i=(/myrank/))
+    call ProfUtil_RapReport(ProfileName)
+    call ProfUtil_Final()
+    
     ! Finalize MPI
     !
     call MPIWrapperFinalize

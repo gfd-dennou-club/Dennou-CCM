@@ -19,6 +19,24 @@
 #   
 #********************************************************************************************
 
+${OcnRefSalt:=35}
+${ADelTimeMin:=20}
+${coupledRunSkipSCyc:=false}
+${FlagVerticalFilter:=false}
+${KMINGSVF:=2}
+${KMAXGSVF:=31}
+${HistIntValueDayCPLRun:=146}
+${HistIntValueDaySTDAloneRun:=1825}
+${coupledStartDay:=0}
+${SIceHDiffCoef:=300}
+
+${IniSolarConst:=$SolarConst}
+${EndSolarConst:=$SolarConst}
+${DelSolarConstPerCyc:=5}
+${IniCycSVariation:=$StartCycleNum}
+EndCycSVariation=$((IniCycSVariation+(EndSolarConst-IniSolarConst)/DelSolarConstPerCyc))
+${DSolarConstDt:=0}
+
 #--------------------------------------------------------------------------------------------
 
 ## Definition of some functions ##############################
@@ -46,19 +64,30 @@ cp    ${ocn_standalone_pedir}/${ocn_standalone_pename} ${ocn_wdir}/ocn_standalon
 cp -r ${ocn_standalone_libdir} ${ocn_wdir}
 
 echo "Create some directories to save data.."
-for ((n=1; n<=nCycle; n++)) ; do
+for ((n=StartCycleNum; n<=nCycle; n++)) ; do
     create_dir "${atm_wdir}/cycle${n}-couple"
     create_dir "${ocn_wdir}/cycle${n}-couple"
+#    create_dir "${ocn_wdir}/cycle${n}-couple/SfcBC"
+
     create_dir "${ocn_wdir}/cycle${n}-standalone"
+#    create_dir "${ocn_wdir}/cycle${n}-standalone/SfcBC"
 done
 
 cd $PBS_O_WORKDIR
 
 #- Perform temporal integration of coupled system -------------------------------
 
-coupledRunRestartTime=$(((StartCycleNum-1)*coupledTimeIntrvPerCycle))
+coupledRunRestartTime=$((coupledStartDay+(StartCycleNum-1)*coupledTimeIntrvPerCycle))
 for ((n=StartCycleNum; n<=nCycle; n++)) ; do
 
+    nowSolarConst=$SolarConst
+    if [ $EndCycSVariation -ge $n ]; then
+	echo "hoge"
+	nowSolarConst=$((IniSolarConst + (n - IniCycSVariation)*DelSolarConstPerCyc))
+    else
+	DSolarConstDt=0D0
+    fi
+    
     ######################################################################
     # Run coupled model
     ######################################################################
@@ -80,22 +109,29 @@ for ((n=StartCycleNum; n<=nCycle; n++)) ; do
      s!#timeset_nml_InitYear#!2000!g; 
      s!#timeset_nml_EndYear#!2000!g;
      s!#timeset_nml_EndDay#!$((coupledRunEndTime+1))!g;
-     s!#gtool_historyauto_nml_IntValue#!146.0!g; 
+     s!#timeset_nml_ADelTimeMin#!${ADelTimeMin}.0!g;
+     s!#gtool_historyauto_nml_IntValue#!${HistIntValueDayCPLRun}.0!g;
      s!#rad_DennouAGCM_nml_RstInputFile#!${atm_wdir}/cycle$((n-1))-couple/rst_rad.nc!g;
-     s!#rad_DennouAGCM_nml_SolarConst#!${SolarConst}!g;
+     s!#rad_DennouAGCM_nml_SolarConst#!${nowSolarConst}.0!g;
+     s!#rad_DennouAGCM_nml_DSolarConstDt#!${DSolarConstDt}!g;
+     s!#dynamics_hspl_vas83_nml_FlagVertFilter#!${FlagVerticalFilter}!g;
+     s!#dynamics_hspl_vas83_nml_KMINGSVF#!${KMINGSVF}!g;
+     s!#dynamics_hspl_vas83_nml_KMAXGSVF#!${KMAXGSVF}!g;
+     s!#cloud_none_nml_FlagPRCPPC#!${FlagPRCPPC}!g;
 EOF
     ` 
     atm_nml=${atmDirPath}/${atm_nml_template##*/}
     sed -e "${sedArgs}" ${atm_nml_template} > ${atm_nml}
 
     echo "** Create configuration file for OGCM **"
+
     OcnRestartInFile=""
     SIceRestartInFile=""
 
     sedArgs=`cat << EOF
-     s!#gtool_historyauto_nml_IntValue#!146.0!g;
+     s!#gtool_historyauto_nml_IntValue#!${HistIntValueDayCPLRun}.0!g;
      s!#gtool_historyauto_nml_OriginValue#!${coupledRunRestartTime}!g;
-     s!#gtool_historyauto_nml_TerminusValue#!${coupledRunEndTime}!g;
+     s!#gtool_historyauto_nml_TerminusValue#!${coupledRunEndTime}!g;     
      s!#OcnRestartFile_nml_InputFileName#!${OcnRestartInFile}!g; 
      s!#OcnRestartFile_nml_OutputFileName#!RestartOcnData.nc!g;
      s!#OcnRestartFile_nml_IntValue#!730.0!g;
@@ -108,32 +144,21 @@ EOF
      s!#TemporalInteg_nml_EndYear#!2000!g; s!#TemporalInteg_nml_EndDay#!$((coupledRunEndTime+1))!g;
      s!#BoundaryCondition_nml_ThermBCSurface#!PrescFlux!g;
      s!#BoundaryCondition_nml_SaltBCSurface#!PrescFlux!g;
+     s!#Constants_nml_RefSalt#!${OcnRefSalt}d0!g;
+     s!#SeaIce_Admin_Constants_nml_SIceHDiffCoef#!${SIceHDiffCoef}!g;
      s!#Exp_APECoupleClimate_nml_RunCycle#!${n}!g;
      s!#Exp_APECoupleClimate_nml_RunTypeName#!Coupled!g;
+     s!#Exp_APECoupleClimate_nml_OcnInitSalt#!${OcnRefSalt}d0!g;
      s!#Exp_APECoupleClimate_nml_SfcBCDataDir#!${ocn_wdir}/cycle$((n-1))-couple/!g;
      s!#Exp_APECoupleClimate_nml_SfcBCMeanInitTime#!${coupledRunRestartTime}.0!g;
      s!#Exp_APECoupleClimate_nml_SfcBCMeanEndTime#!${coupledRunRestartTime}.0!g;
-EOF
-    `
-    sedArgs2=""
-    if [ $standaloneTimeIntrvPerCyc -gt 0 ] ; then
-	sedArgs2=`cat << EOF
      s!#Exp_APECoupleClimate_nml_RestartDataDir#!${ocn_wdir}/cycle$((n-1))-standalone/!g;
      s!#Exp_APECoupleClimate_nml_RestartMeanInitTime#!$((standaloneTimeIntrvPerCycle))!g;
      s!#Exp_APECoupleClimate_nml_RestartMeanEndTime#!${standaloneTimeIntrvPerCycle}.0!g;
 EOF
     `
-    else
-	sedArgs2=`cat << EOF
-     s!#Exp_APECoupleClimate_nml_RestartDataDir#!${ocn_wdir}/cycle$((n-1))-couple/!g;
-     s!#Exp_APECoupleClimate_nml_RestartMeanInitTime#!${coupledRunRestartTime}.0!g;
-     s!#Exp_APECoupleClimate_nml_RestartMeanEndTime#!${coupledRunRestartTime}.0!g;
-EOF
-    `	
-    fi
-    
     ocn_nml=${ocnDirPath}/${ocn_nml_template##*/}
-    sed -e "${sedArgs}" ${ocn_nml_template} | sed -e "${sedArgs2}" > ${ocn_nml}
+    sed -e "${sedArgs}" ${ocn_nml_template} > ${ocn_nml}
 
     #
     if [ $n -eq $StartCycleNum ] && $coupledRunSkipSCyc ; then
@@ -141,8 +166,8 @@ EOF
     else
         echo "** Execute Dennou-OGCM  ******************************"
 
-	cp    ${EXPDIR}/DCCM_AtmT21.conf ${atmDirPath}/DCCM.conf
-	cp    ${EXPDIR}/DCCM_AtmT21.conf ${ocnDirPath}/DCCM.conf
+	cp    ${DCCMConfPath} ${atmDirPath}/DCCM.conf
+	cp    ${DCCMConfPath} ${ocnDirPath}/DCCM.conf
 	
 	${MPIRUN}                                                   \
 	-wdir ${atmDirPath} -env OMP_NUM_THREADS ${atm_THREADS_NUM} \
@@ -152,26 +177,38 @@ EOF
         -n ${ocn_PE_NUM} ${ocn_pe} --N=${ocn_nml}                   \
 	1> Stdout_couple_${exp_name} 2>Stderr_couple_${exp_name}
 
-	if [ $? -ne 0 ]; then
-	  echo "Exit stauts is 0.  Fail to run DCPCM. Exit.."; exit
-	fi
-        coupledRunEndTimeSec=`echo "$coupledRunEndTime*86400" | bc`
+#	if [ $? -ne 0 ]; then
+#	  echo "Exit stauts is 0.  Fail to run DCPCM. Exit.."; exit
+#	fi
+#        coupledRunEndTimeSec=`echo "$coupledRunEndTime*86400" | bc`
     fi
 
-    coupledRunRestartTime=${coupledRunEndTime}
 	
+#    echo "create init data file for stand-alone OGCM run.."
+#    ruby ${CREATE_INITDATA4OGCM_CMD} ${ocnDirPath} ${coupledRunEndTimeSec} ${ocnDirPath_standalone} 0.0
+#    mpiexec.hydra \
+#    -env LD_LIBRARY_PATH $LD_LIBRARY_PATH \
+#    -n 1 \
+#    ${RUBY} ${CREATE_INITDATA4OGCM_CMD} ${ocnDirPath} -1.0 ${ocnDirPath_standalone} 0.0
+
+#   echo "create surface BC  data file for stand-alone OGCM run.."    
+#   mpiexec.hydra \
+#   -env LD_LIBRARY_PATH $LD_LIBRARY_PATH \
+#   -n 1  \
+#   ${RUBY} ${CREATE_SURFBCDATA4STANDALONEOGCM_CMD} ${ocnDirPath} ${coupledRunRestartTime} ${coupledRunEndTime} ${ocnDirPath_standalone}/sogcm_SurfBC
+
+    #
+
     #########################################################################
     # Run standalone ocean model with sea-ice model
     ########################################################################
-
-    if [ $standaloneTimeIntrvPerCyc -gt 0 ] ; then
     
-	echo "-- cycle=${n} (OGCM stadalone run) -- ${standaloneTimeIntrvPerCycle} [day]"
+    echo "-- cycle=${n} (OGCM stadalone run) -- ${standaloneTimeIntrvPerCycle} [day]"
 
-	sedArgs=`cat << EOF
-      s!#gtool_historyauto_nml_IntValue#!1825.0!g;
+    sedArgs=`cat << EOF
+      s!#gtool_historyauto_nml_IntValue#!${HistIntValueDaySTDAloneRun}.0!g;
       s!#gtool_historyauto_nml_OriginValue#!0.0!g;
-      s!#gtool_historyauto_nml_TerminusValue#!${standaloneTimeIntrvPerCycle}!g;
+      s!#gtool_historyauto_nml_TerminusValue#!${standaloneTimeIntrvPerCycle}!g;      
       s!#OcnRestartFile_nml_InputFileName#!!g; 
       s!#OcnRestartFile_nml_OutputFileName#!RestartOcnData.nc!g;
       s!#OcnRestartFile_nml_IntValue#!9125.0!g;
@@ -185,8 +222,11 @@ EOF
       s!#TemporalInteg_nml_EndDay#!10!g;
       s!#BoundaryCondition_nml_ThermBCSurface#!PrescFlux_Han1984!g;
       s!#BoundaryCondition_nml_SaltBCSurface#!PrescFlux!g;
+      s!#Constants_nml_RefSalt#!${OcnRefSalt}d0!g;
+      s!#SeaIce_Admin_Constants_nml_SIceHDiffCoef#!${SIceHDiffCoef}!g;
       s!#Exp_APECoupleClimate_nml_RunCycle#!${n}!g;
       s!#Exp_APECoupleClimate_nml_RunTypeName#!Standalone!g;
+      s!#Exp_APECoupleClimate_nml_OcnInitSalt#!${OcnRefSalt}d0!g;
       s!#Exp_APECoupleClimate_nml_SfcBCDataDir#!${ocn_wdir}/cycle$((n))-couple/!g;
       s!#Exp_APECoupleClimate_nml_SfcBCMeanInitTime#!$((coupledRunEndTime - 438)).0!g;
       s!#Exp_APECoupleClimate_nml_SfcBCMeanEndTime#!${coupledRunEndTime}.0!g;
@@ -195,20 +235,37 @@ EOF
       s!#Exp_APECoupleClimate_nml_RestartMeanEndTime#!${coupledRunEndTime}.0!g;
 EOF
     `
-	ocn_nml=${ocnDirPath_standalone}/${ocn_nml_template##*/}
-	sed -e "${sedArgs}" ${ocn_nml_template} > ${ocn_nml}
+    ocn_nml=${ocnDirPath_standalone}/${ocn_nml_template##*/}
+    sed -e "${sedArgs}" ${ocn_nml_template} > ${ocn_nml}
 
-	#
-	${MPIRUN}                                                                             \
-	    -wdir ${ocnDirPath_standalone} -env OMP_NUM_THREADS ${ocn_standalone_THREADS_NUM} \
-	    -env LD_LIBRARY_PATH ${LD_LIBRARY_PATH}                                           \
-	    -n ${ocn_standalone_PE_NUM}                                                       \
-	    ${ocn_standalone_pe} --N=${ocn_nml}                                               \
-	    1> Stdout_standalone_${exp_name} 2>Stderr_standalone_${exp_name}
-	
-	if [ $? -ne 0 ]; then
-	    echo "Exit stauts is 0.  Fail to run Dennou-OGCM(stand-alone mode). Exit.."; exit
-	fi
+    #
+    ${MPIRUN}                                                                             \
+	-wdir ${ocnDirPath_standalone} -env OMP_NUM_THREADS ${ocn_standalone_THREADS_NUM} \
+	-env LD_LIBRARY_PATH ${LD_LIBRARY_PATH}                                           \
+	-n ${ocn_standalone_PE_NUM}                                                       \
+	${ocn_standalone_pe} --N=${ocn_nml}                                               \
+	1> Stdout_standalone_${exp_name} 2>Stderr_standalone_${exp_name}
+    
+    if [ $? -ne 0 ]; then
+	echo "Exit stauts is 0.  Fail to run Dennou-OGCM(stand-alone mode). Exit.."; exit
     fi
+
+    coupledRunRestartTime=${coupledRunEndTime}
+    
+    if [ $n -ne $nCycle ]
+    then
+	echo "create init data file for coupled AOGCM run.."
+	standaloneTimeIntrvPerCycleSec=$((standaloneTimeIntrvPerCycle*86400))
+	ocnDirPath_next="${ocn_wdir}/cycle$((n+1))-couple"
+#	mpiexec.hydra \
+#        -env LD_LIBRARY_PATH ${ocn_wdir}/lib \
+#	-n 1  \
+#	${RUBY} ${CREATE_INITDATA4OGCM_CMD} ${ocnDirPath_standalone} -1 ${ocnDirPath_next}  ${coupledRunRestartTimeSec}
+
+#	echo "copy data files of surface fluxes for coupled AOGCM run.."
+#	cp ${ocnDirPath_standalone}/SfcBC/*.nc ${ocnDirPath_next}/SfcBC/
+
+    fi
+
 
 done

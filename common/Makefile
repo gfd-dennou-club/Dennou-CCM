@@ -22,7 +22,10 @@ OBJS    = \
 	optionparser_mod.o   \
 	mod_common_params.o  \
 	mod_common_compdef.o \
-	field_def.o grid_mapping_util.o interpolation_data_latlon_mod.o
+	field_def.o          \
+	grid_mapping_util.o  \
+	grid_mapping_util_jones99.o  \
+	interpolation_data_latlon_mod.o
 
 MODS    =  \
 	optionparser_mod.mod   \
@@ -31,6 +34,7 @@ MODS    =  \
 	component_field.mod    \
 	field_def.mod          \
 	grid_mapping_util.mod  \
+	grid_mapping_util_jones99.mod  \
 	interpolation_data_latlon_mod.mod
 
 #--------------------------------------------
