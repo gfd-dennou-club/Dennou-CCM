@@ -18,8 +18,9 @@ opt.parse(ARGV)
 CLIMATE_SNOWBALL = "SnowBallIce"
 CLIMATE_PARTIALICE = "PartialIce"
 CLIMATE_RUNAWAY = "Runaway"
-CLIMATE_WARM = "Warm"
+CLIMATE_WARM    = "Warm"
 CLIMATE_PARTICE_COLD = "PartIceCold"
+CLIMATE_PARTICE_LARGE = "PartIceLarge"
 
 TargetDir = (options[:exp_path] == nil) ? Dir.pwd : options[:exp_path]
 DistDir = (options[:dist_path] == nil) ? Dir.pwd : options[:dist_path]
@@ -110,15 +111,17 @@ def u_ptemp_fig(u_, ptemp_, itr)
 
   case  ClimateState
   when CLIMATE_SNOWBALL then
-    temp_min = 271; temp_max = 280; temp_int = 0.5
+    temp_min = 271; temp_max = 280; temp_int = 0.25
+  when CLIMATE_PARTICE_LARGE  then
+    temp_min = 271; temp_max = 290; temp_int = 0.5
   when CLIMATE_PARTICE_COLD then
-    temp_min = 271; temp_max = 295; temp_int = 1
+    temp_min = 271; temp_max = 297; temp_int = 0.5
   when CLIMATE_WARM then
-    temp_min = 271; temp_max = 310; temp_int = 1
+    temp_min = 271; temp_max = 313; temp_int = 2
   when CLIMATE_RUNAWAY
-    temp_min = 280; temp_max = 330; temp_int = 2
+    temp_min = 280; temp_max = 330; temp_int = 2.5
   else
-    temp_min = 271; temp_max = 310; temp_int = 1
+    temp_min = 271; temp_max = 304; temp_int = 1
   end
   
   u_min = -0.8; u_max = 0.3; u_int = 0.025
@@ -142,32 +145,52 @@ def u_ptemp_fig(u_, ptemp_, itr)
   rename_pngfile("U-PTemp_xtmean_itr#{itr.to_i}") if FlagOutputIMG
 end
 
+def gen_levels(min_val, max_val, interval, is_exceed_val=false)
+  nlevels = ((max_val - min_val)/interval).to_i + 1
+  levels = (0..nlevels-1).map{|i|
+    min_val + i*interval
+  }
+  if is_exceed_val then
+    rmiss = DCL.glpget('rmiss')
+    levels.unshift(rmiss); levels.push(rmiss)
+  end
+  return levels
+end
+
 def msf_salt_fig(msf_, salt_, itr)
   p "msf_salt_fig: itr=#{itr}"
   prep_dcl(1, 1, 1)
 
 
+  salt_levels = []
   case ClimateState
   when CLIMATE_SNOWBALL then
-  when CLIMATE_PARTICE_COLD then
-    salt_min = 34.0; salt_max = 36.2; salt_int = 0.1
+    salt_levels = gen_levels(36.0, 37.5, 0.25) 
+    msf_min = -50; msf_max = 50; msf_int = 5
+  when CLIMATE_PARTICE_LARGE then
+    salt_levels = [33.0].concat( gen_levels(33.4, 36.4, 0.2) )
     msf_min = -50; msf_max = 50; msf_int = 5    
+  when CLIMATE_PARTICE_COLD then
+    salt_levels = [33.0].concat( gen_levels(33.4, 36.4, 0.2) )
+    msf_min = -50; msf_max = 50; msf_int = 5
   when CLIMATE_WARM then
-    salt_min = 33.5; salt_max = 38; salt_int = 0.25
+    salt_levels = [33.0].concat( gen_levels(33.5, 37.25, 0.25).concat([37.5,38.0,39.0,40.0]) )
     msf_min = -50; msf_max = 50; msf_int = 5
   when CLIMATE_RUNAWAY
   else
-    salt_min = 34.0; salt_max = 36.8; salt_int = 0.2
+    salt_levels = [33.0].concat( gen_levels(33.4, 36.8, 0.2).concat([37.2, 38.0]) )
     msf_min = -50; msf_max = 50; msf_int = 5
   end
 
+  p salt_levels
+  
   sig_pos = salt_.axis("sig").pos.rename("sigm")  
   fig_z_grid, ry1, ry2, cy = sig_to_figZgrid(salt_.grid,itr)  
   salt = GPhys.new(fig_z_grid, salt_.data)  
   msf = GPhys.new(fig_z_grid, msf_.interpolate(sig_pos).data)
 
   GGraph.next_axes('yside'=>'r')  
-  GGraph.tone( salt, true, "titl"=>"MSF, Salt", "int"=>salt_int, "min"=>salt_min, "max"=>salt_max )
+  GGraph.tone( salt, true, "titl"=>"MSF, Salt", "levels"=>salt_levels)
   GGraph.contour( msf, false, "titl"=>"MSF, Salt", "int"=>msf_int, "min"=>msf_min, "max"=>msf_max )
   GGraph.color_bar("charfact"=>0.75, "vlength"=>0.25)
   DCL::uyaxlb('L', ry1, ry2, cy, 4)
@@ -184,7 +207,7 @@ def stratification_fig(densPot_, bvFreq_, itr=1)
 
   case ClimateState
   when CLIMATE_SNOWBALL then
-  when CLIMATE_PARTICE_COLD then
+  when CLIMATE_PARTICE_COLD, CLIMATE_PARTICE_LARGE then
     bvFreq_min = -1e-5; bvFreq_max = 2e-4; bvFreq_int = 1e-5
     bvFreq_levels = [-2e-6, -8e-7, -5e-8, -2e-8, 0.0, 2e-7, 5e-7, 8e-7, 2e-6, 5e-6, 8e-6, 2e-5, 5e-5, 8e-5, 2e-4, 5e-4, 8e-4]
     densPot_min = -4; densPot_max = 2; densPot_int = 0.2
@@ -222,7 +245,7 @@ def meridional_heat_flux_fig(totHT, eulerHT, isoDiffHT, bolusHT, itr=1)
   case ClimateState
   when CLIMATE_SNOWBALL then
     htflx_min = -1.0; htflx_max = 1.0
-  when CLIMATE_PARTICE_COLD then
+  when CLIMATE_PARTICE_COLD, CLIMATE_PARTICE_LARGE then
     htflx_min = -2.0; htflx_max = 2.0    
   when CLIMATE_WARM then
     htflx_min = -5.0; htflx_max = 5.0
@@ -274,10 +297,12 @@ def sfchflx_fig(sfchflx, itr=1)
     sfchflx_min = -30.0; sfchflx_max = 30.0
   when CLIMATE_RUNAWAY then
     sfchflx_min = -30.0; sfchflx_max = 30.0
+  when CLIMATE_WARM then
+    sfchflx_min = -60.0; sfchflx_max = 40.0
   else
     sfchflx_min = -50.0; sfchflx_max = 25.0
   end
-  
+
   GGraph.set_axes("ytitle"=>"surface heat flux", "yunits"=>"K")
   GGraph.line(sfchflx, true,  "title"=>"surface heat flux(ocn<->atm/sice)",
               "min"=>sfchflx_min, "max"=>sfchflx_max,
@@ -308,17 +333,22 @@ sfchflxo = get_gp("SfcHFlxO")
 
 #------------------------------------------
 
+p "u_ptemp fig"
 u_ptemp_fig( u, ptemp, 1)
 u_ptemp_fig( u, ptemp, 2)
 
+p "msf_salt fig"
 msf_salt_fig( msf, salt, 1)
 msf_salt_fig( msf, salt, 2)
 
+p "stratification fig"
 stratification_fig( densPot, bvFreq, 1)
 stratification_fig( densPot, bvFreq, 2)
 
+p "meridional heat flux fig"
 meridional_heat_flux_fig(totHT, eulerHT, isoDiffHT, bolusHT)
 
+p "sfchflx fig"
 sfchflx_fig(sfchflxo, 1)
 
 

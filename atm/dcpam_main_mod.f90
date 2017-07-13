@@ -500,6 +500,7 @@ module dcpam_main_mod
   real(DP), allocatable:: xy_SurfTemp (:,:)
                               ! 地表面温度 (K)
                               ! Surface temperature (K)
+  
   real(DP), allocatable:: xyz_SoilTemp(:,:,:)
                               ! 土壌温度 (K)
                               ! Soil temperature (K)
@@ -800,6 +801,7 @@ module dcpam_main_mod
        & xy_LDWRFlxAtm, xy_LUWRFlxAtm, xy_SDWRFlxAtm, xy_SUWRFlxAtm, &
        & xy_SurfAirTemp, xy_DSurfHFlxDTs, xy_DSurfLatentFlxDTs, &
        & xy_RainAtm, xy_SnowAtm
+
   
   ! 作業変数
   ! Work variables
@@ -961,11 +963,11 @@ contains
 
     if (present(xy_SfcEngyFlxModRecv)) then
        call AuxVars( &
-            & xy_PsN, xyz_TempN, xyzf_QMixN(:,:,:,IndexH2OVap), & ! (in )
+            & xy_PsB, xyz_TempB, xyzf_QMixB(:,:,:,IndexH2OVap), & ! (in )
             & xyr_Press = xyr_Press                             & ! (out) optional
             & )
        
-       xyz_TempN(:,:,1) = xyz_TempN(:,:,1) + &
+       xyz_TempB(:,:,1) = xyz_TempB(:,:,1) + &
             & (xy_SfcEngyFlxModRecv(:,:) - 0d0) / (xyr_Press(:,:,0) - xyr_Press(:,:,1)) &
             & * Grav / CpDry
     end if

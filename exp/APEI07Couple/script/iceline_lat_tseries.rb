@@ -1,6 +1,7 @@
 #!/usr/env ruby
 require "numru/ggraph"
 require "optparse"
+require "parallel"
 include NumRu
 
 opt = OptionParser.new
@@ -55,6 +56,10 @@ p "cyc_range: #{cyc_start}--#{cyc_end}"
 p "the period of coupled/stadalone run: #{CoupledCycIntDay}:#{StandaloneCycIntDay} [day]"
 
 #---------------------------------------------
+
+NProc=Parallel.processor_count
+
+p "NProc=#{NProc}"
 
 ###########################
 
@@ -159,14 +164,14 @@ def extract_iceline(cycle, varname)
         if lat_axis.pos.val[j] > 0.0 then
           if (gp_Tg_dev[j,n] < gp_Tg_dev[j+1,n]) and (icelat_sh == 90.0) then
             icelat_sh = 0.0
-            p "accross eq.."
+#            p "accross eq.."
           else
             icelat_nh = tmp_icelat
           end
         else
-          if gp_Tg_dev[j,n] > gp_Tg_dev[j+1,n] then
+          if (gp_Tg_dev[j,n] > gp_Tg_dev[j+1,n]) and (icelat_sh != 90.0) then
             icelat_nh = 0.0
-            p "accross eq.."
+#            p "accross eq.."
           else
             icelat_sh = tmp_icelat
           end
@@ -181,7 +186,7 @@ def extract_iceline(cycle, varname)
     end
 
     gp_Tg_glmean[n] = ((gp_Tg_meanlon[true,n]*gp_lat_weight).sum * 0.5).to_f
-    p "n=#{n} iceline=#{gp_iceline.val[n]},  sfctemp=#{gp_Tg_glmean.val[n]}"
+    p "cyc=#{cycle}: n=#{n} iceline=#{gp_iceline.val[n]},  sfctemp=#{gp_Tg_glmean.val[n]}"
 #    p "nh=", icelat_nh, "sh=", icelat_sh
   end
   
@@ -190,9 +195,10 @@ def extract_iceline(cycle, varname)
   ofile.close
 end
 
-for i in BeginRBCyc..EndRBCyc
+cycles = (BeginRBCyc..EndRBCyc).map{|i| i}
+ret = Parallel.map(cycles, :in_processes => NProc){|i|
   extract_iceline(i, SFCTEMP_VARNAME)
-end
+}
 
 if File.exist?("iceline_lat.nc") then
   FileUtils::rm_f("iceline_lat.nc")  

@@ -2,6 +2,8 @@
 require "numru/ggraph"
 require "optparse"
 require "fileutils"
+require "parallel"
+require "benchmark"
 include NumRu
 
 opt = OptionParser.new
@@ -48,10 +50,18 @@ p "Period: #{cyc_start}:#{cyc_end}"
 p "ListAddition:"+TargetDataList.join(",")
 
 def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ovarname+".nc")
-  ncpathList = []
+
   p "read NetCDF files (#{ncname}).."
 
-  for i in BeginCombineCyc..EndCombineCyc
+  ncpathList = Hash.new
+  (BeginCombineCyc..EndCombineCyc).each{|i|
+    ncpathList[i] = "#{DistDir}/tmp#{i}_#{ofilename}"
+  }
+  p ncpathList
+  
+  ret = Parallel.map(BeginCombineCyc..EndCombineCyc, :in_processes =>NProc ){|i|
+#  (BeginCombineCyc..EndCombineCyc).each{|i|
+
     p "#{i}." if i%10 == 0
     p "#{TargetDir}\/cycle#{i}-couple\/#{ncname}"
     gphys = GPhys::IO.open("#{TargetDir}/cycle#{i}-couple/#{ncname}", varname)
@@ -73,18 +83,16 @@ def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ova
       end
     }
     
-    ncpath = "#{DistDir}/tmp#{i}_#{ofilename}"
-    ncpathList.push(ncpath)
-    ofile = NetCDF::create(ncpath)
+    ofile = NetCDF::create(ncpathList[i])
     tlen = gphys.axis("time").length
     GPhys::IO.write(ofile, gphys[false,1..tlen-1].copy.rename(ovarname))
     ofile.close
-  end
+  }
 
   p "Output.."
 
   ofile = NetCDF::create("#{DistDir}/#{ofilename}")
-  gphys = GPhys::IO.open(ncpathList, ovarname)
+  gphys = GPhys::IO.open(ncpathList.values, ovarname)
   gphys = gphys.mean("time") if meanOpt.include?("time")
   
   GPhys::IO.write(ofile, gphys)
@@ -92,30 +100,36 @@ def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ova
   ofile.close
 
   p "remove tmp files.."
-  FileUtils::rm_f(ncpathList)
+  FileUtils::rm_f(ncpathList.values)
 end
 
-#=begin
-merge_ncfile("U.nc", "U", "U", {}, ["lon","time"])
-merge_ncfile("V.nc", "V", "V", {}, ["lon","time"])
-merge_ncfile("OMG.nc", "OMG", "OMG", {}, ["lon","time"])
-merge_ncfile("PTemp.nc", "PTemp", "PTemp", {}, ["lon","time"])
-merge_ncfile("Salt.nc", "Salt", "Salt", {}, ["lon","time"])
-merge_ncfile("MSF.nc", "MSF", "MSF", {}, ["lon","time"])
+bench_result = Benchmark.realtime do
+
+  #=begin
+  merge_ncfile("U.nc", "U", "U", {}, ["lon","time"])
+  merge_ncfile("V.nc", "V", "V", {}, ["lon","time"])
+  merge_ncfile("OMG.nc", "OMG", "OMG", {}, ["lon","time"])
+  merge_ncfile("PTemp.nc", "PTemp", "PTemp", {}, ["lon","time"])
+  merge_ncfile("Salt.nc", "Salt", "Salt", {}, ["lon","time"])
+  merge_ncfile("MSF.nc", "MSF", "MSF", {}, ["lon","time"])
 #=end
 
-merge_ncfile("SfcHFlxO.nc", "SfcHFlxO", "SfcHFlxO", {}, ["lon", "time"])
+  merge_ncfile("SfcHFlxO.nc", "SfcHFlxO", "SfcHFlxO", {}, ["lon", "time"])
 
-#=begin
-if TargetDataList.include?("EngyFlxLat") then
-  merge_ncfile("diag/TotHT.nc", "TotHT", "TotHT", {}, ["time"])
-  merge_ncfile("diag/EulerHT.nc", "EulerHT", "EulerHT", {}, ["time"])
-  merge_ncfile("diag/IsoDiffHT.nc", "IsoDiffHT", "IsoDiffHT", {}, ["time"])
-  merge_ncfile("diag/BolusHT.nc", "BolusHT", "BolusHT", {}, ["time"])
-end
+  #=begin
+  if TargetDataList.include?("EngyFlxLat") then
+    merge_ncfile("diag/TotHT.nc", "TotHT", "TotHT", {}, ["time"])
+    merge_ncfile("diag/EulerHT.nc", "EulerHT", "EulerHT", {}, ["time"])
+    merge_ncfile("diag/IsoDiffHT.nc", "IsoDiffHT", "IsoDiffHT", {}, ["time"])
+    merge_ncfile("diag/BolusHT.nc", "BolusHT", "BolusHT", {}, ["time"])
+  end
 
-if TargetDataList.include?("Stability") then
-  merge_ncfile("diag/DensPot.nc", "DensPot", "DensPot", {}, ["lon", "time"])
-  merge_ncfile("diag/BVFreq.nc", "BVFreq", "BVFreq", {}, ["lon", "time"])
+  if TargetDataList.include?("Stability") then
+    merge_ncfile("diag/DensPot.nc", "DensPot", "DensPot", {}, ["lon", "time"])
+    merge_ncfile("diag/BVFreq.nc", "BVFreq", "BVFreq", {}, ["lon", "time"])
+  end
+
 end
+puts "computational time: #{bench_result} s"
+
 #=end

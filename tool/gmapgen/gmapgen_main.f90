@@ -31,19 +31,28 @@ program gmapgen_main
   
   integer :: IMA, JMA, KMA
   integer :: NMA
-  character(STRING) :: gmapfile_AO_NAME
   real(DP), allocatable :: x_LonA(:)
   real(DP), allocatable :: y_LatA(:)
   real(DP), allocatable :: x_IntWtLonA(:)
   real(DP), allocatable :: y_IntWtLatA(:)
-  
+
   integer :: IMO, JMO, KMO
   integer :: NMO
-  character(STRING) :: gmapfile_OA_NAME
   real(DP), allocatable :: x_LonO(:)
   real(DP), allocatable :: y_LatO(:)
   real(DP), allocatable :: x_IntWtLonO(:)
   real(DP), allocatable :: y_IntWtLatO(:)
+
+  integer :: IMS, JMS
+  real(DP), allocatable :: x_LonS(:)
+  real(DP), allocatable :: y_LatS(:)
+  real(DP), allocatable :: x_IntWtLonS(:)
+  real(DP), allocatable :: y_IntWtLatS(:)
+  
+   character(STRING) :: gmapfile_AO_NAME  
+   character(STRING) :: gmapfile_OA_NAME
+   character(STRING) :: gmapfile_AS_NAME  
+   character(STRING) :: gmapfile_SA_NAME
   
   character(*), parameter :: PROGRAM_NAME = "gmapgen_main"
 
@@ -70,6 +79,13 @@ program gmapgen_main
 !!$  write(*,*) "*Lon=", x_LonO
 !!$  write(*,*) "*Lat=", y_LatO
 
+  IMS = IMA
+  JMS = JMO
+  allocate( x_LonS(IMS), y_LatS(JMS) )
+  allocate( x_IntWtLonS(IMS), y_IntWtLatS(JMS) )
+  x_LonS(:) = x_LonA; y_LatS(:) = y_LatO
+  x_IntWtLonS(:) = x_IntWtLonA; y_IntWtLatS(:) = y_IntWtLatO
+  
   !
   !
   if (.not. ConservativeFlag) then
@@ -78,6 +94,13 @@ program gmapgen_main
 
      call gen_gridmapfile_lonlat2lonlat( gmapfile_OA_NAME, &
           & x_LonO, y_LatO, x_LonA, y_LatA ) 
+
+     call gen_gridmapfile_lonlat2lonlat( gmapfile_AS_NAME, &
+          & x_LonA, y_LatA, x_LonS, y_LatS )
+     
+     call gen_gridmapfile_lonlat2lonlat( gmapfile_SA_NAME, &
+          & x_LonS, y_LatS, x_LonA, y_LatA )
+     
   else
      call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_AO_NAME,  &
           & x_LonA, y_LatA, x_LonO, y_LatO,                     &
@@ -86,6 +109,14 @@ program gmapgen_main
      call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_OA_NAME,  &
           & x_LonO, y_LatO, x_LonA, y_LatA,                     &
           & x_IntWtLonO, y_IntWtLatO, x_IntWtLonA, y_IntWtLatA)
+
+     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_AS_NAME, &
+          & x_LonA, y_LatA, x_LonS, y_LatS,                    &
+          & x_IntWtLonA, y_IntWtLatA, x_IntWtLonS, y_IntWtLatS )
+     
+     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_SA_NAME, &
+          & x_LonS, y_LatS, x_LonA, y_LatA,                    &
+          & x_IntWtLonS, y_IntWtLatS, x_IntWtLonA, y_IntWtLatA )
   end if
   
   ! Output some information about grid mapping table
@@ -117,6 +148,8 @@ contains
     NAMELIST /PARAM_GMAPGEN/     &
          & gmapfile_AO_NAME,     &
          & gmapfile_OA_NAME,     &
+         & gmapfile_SA_NAME,     &
+         & gmapfile_AS_NAME,     &
          & ConservativeFlag
 
 
@@ -165,6 +198,8 @@ contains
     call MessageNotify( 'M', PROGRAM_NAME, "OCN: (IM, JM, KM)=(%d,%d,%d)", i=(/ IMO, JMO, KMO /) )
     call MessageNotify( 'M', PROGRAM_NAME, "gmapfile_OA      =%a        ", ca=(/ gmapfile_OA_NAME /) )
     call MessageNotify( 'M', PROGRAM_NAME, "gmapfile_AO      =%a        ", ca=(/ gmapfile_AO_NAME /) )
+    call MessageNotify( 'M', PROGRAM_NAME, "gmapfile_AS      =%a        ", ca=(/ gmapfile_AS_NAME /) )
+    call MessageNotify( 'M', PROGRAM_NAME, "gmapfile_SA      =%a        ", ca=(/ gmapfile_SA_NAME /) )
     call MessageNotify( 'M', PROGRAM_NAME, "conservativeFlag =%b        ", L=(/ ConservativeFlag /) )
     
   end subroutine read_config

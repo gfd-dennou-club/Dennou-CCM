@@ -21,6 +21,7 @@ CLIMATE_PARTIALICE = "PartialIce"
 CLIMATE_RUNAWAY = "Runaway"
 CLIMATE_WARM = "Warm"
 CLIMATE_PARTICE_COLD = "PartIceCold"
+CLIMATE_PARTICE_LARGE = "PartIceLARGE"
 
 TargetDir = (options[:exp_path] == nil) ? Dir.pwd : options[:exp_path]
 DistDir = (options[:dist_path] == nil) ? Dir.pwd : options[:dist_path]
@@ -105,10 +106,10 @@ def ptemp_salt_glmean_tserise_fig(gmPTemp, gmSalt, itr=1)
   case ClimateState
   when CLIMATE_SNOWBALL then
     ptemp_min = 271; ptemp_max = 280
-    salt_min = 34.9; salt_max = 35.3
-  when CLIMATE_PARTICE_COLD then
+    salt_min = 34.9; salt_max = 37.0
+  when CLIMATE_PARTICE_COLD, CLIMATE_PARTICE_LARGE then
     ptemp_min = 271; ptemp_max = 280
-    salt_min = 34.9; salt_max = 35.3
+    salt_min = 34.9; salt_max = 35.4
   when CLIMATE_WARM then
     ptemp_min = 271; ptemp_max = 290
     salt_min = 34.8; salt_max = 35.2
@@ -135,76 +136,6 @@ def ptemp_salt_glmean_tserise_fig(gmPTemp, gmSalt, itr=1)
   
   rename_pngfile("PTempSaltGlMean_tserise") if FlagOutputIMG       
 end
-
-def sicethick_siceEn_glmean_tserise_fig(gmSIceThick, gmSIceEn, itr=1)
-
-  case ClimateState
-  when CLIMATE_SNOWBALL then
-    sicethick_min = 0; sicethick_max = 60
-    siceen_min = -5e10; siceen_max = 0.0
-  when CLIMATE_PARTICE_COLD then
-    sicethick_min = 0; sicethick_max = 30
-    siceen_min = -1e10; siceen_max = 0.0
-  when CLIMATE_WARM then
-    sicethick_min = 0; sicethick_max = 5
-    siceen_min = -1e9; siceen_max = 0.0
-  when CLIMATE_RUNAWAY then
-    sicethick_min = 0; sicethick_max = 10
-    siceen_min = -5e8; siceen_max = 0.0
-  else
-    sicethick_min = 0; sicethick_max = 10
-    siceen_min = -3e9; siceen_max = 0.0
-  end
-
-  prep_dcl_tserise(1, itr, 1, 1, 2)
-
-  GGraph.set_fig('viewport'=>[0.15,0.9,0.05,0.34])
-  GGraph.set_axes("ytitle"=>"ice thickness", "yunits"=>"m")
-  GGraph.line(gmSIceThick, true, {  "title"=>"time serise of global-mean field", "max"=>sicethick_max, "min"=>sicethick_min,
-                                "index"=>13})
-
-  GGraph.set_fig('viewport'=>[0.15,0.9,0.1,0.38])      
-  GGraph.set_axes("ytitle"=>"sea ice energy", "yunits"=>"J")
-  GGraph.line(gmSIceEn, true, {  "title"=>"", "max"=>siceen_max, "min"=>siceen_min,
-                               "index"=>13})
-  DCL.grcls
-  
-  rename_pngfile("SIceThickSIceEnGlMean_tserise") if FlagOutputIMG       
-end
-
-def energy_glmean_tserise_fig(totEn, intEn, potEn, latEn, kinEn, itr=1)
-  prep_dcl(1, itr, 8)
-  GGraph.set_fig('viewport'=>[0.1,0.9,0.22,0.79])  
-
-  case ClimateState
-  when CLIMATE_RUNAWAY then
-    normalized_en_max = 3.5; latEnFac=1.0; 
-  else
-    normalized_en_max = 1.5; latEnFac=10.0
-  end
-
-  tot_En_mean = totEn.mean("time")
-
-  legend_common = {"legend_dx"=>0.024, "legend_vx"=> 0.65, "legend_size"=>0.018}
-  GGraph.set_axes("ytitle"=>"normalized global-mean energy", "yunits"=>"1")
-  GGraph.line( totEn/tot_En_mean, true, {"titl"=>"time serise of normalized energy", "max"=>normalized_en_max, "min"=>0,
-                                         "index"=>13, "legend"=>"total", "legend_vy"=> 0.75}.merge(legend_common) )
-  GGraph.line( intEn/tot_En_mean, false,              
-               {"index"=>23, "legend"=>"internal"}.merge(legend_common) )
-
-  GGraph.line( potEn/tot_En_mean, false,              
-               {"index"=>33, "legend"=>"potential"}.merge(legend_common) )
-
-  GGraph.line( latEn/tot_En_mean*latEnFac, false,              
-               {"index"=>43, "legend"=>"latent(#{latEnFac.to_i} times)"}.merge(legend_common) )
-  
-  GGraph.line( kinEn/tot_En_mean*5e2, false,              
-               {"index"=>53, "legend"=>"kinetic(500 times)"}.merge(legend_common) )
-  DCL.grcls
-  
-  rename_pngfile("EngyGlMean_tserise") if FlagOutputIMG     
-end
-
 
 #---
 

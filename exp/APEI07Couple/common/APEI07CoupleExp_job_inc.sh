@@ -35,6 +35,7 @@ ${EndSolarConst:=$SolarConst}
 ${DelSolarConstPerCyc:=5}
 ${IniCycSVariation:=$StartCycleNum}
 EndCycSVariation=$((IniCycSVariation+(EndSolarConst-IniSolarConst)/DelSolarConstPerCyc))
+${DSolarConstDt:=0}
 
 #--------------------------------------------------------------------------------------------
 
@@ -83,6 +84,8 @@ for ((n=StartCycleNum; n<=nCycle; n++)) ; do
     if [ $EndCycSVariation -ge $n ]; then
 	echo "hoge"
 	nowSolarConst=$((IniSolarConst + (n - IniCycSVariation)*DelSolarConstPerCyc))
+    else
+	DSolarConstDt=0D0
     fi
     
     ######################################################################
@@ -107,9 +110,10 @@ for ((n=StartCycleNum; n<=nCycle; n++)) ; do
      s!#timeset_nml_EndYear#!2000!g;
      s!#timeset_nml_EndDay#!$((coupledRunEndTime+1))!g;
      s!#timeset_nml_ADelTimeMin#!${ADelTimeMin}.0!g;
-     s!#gtool_historyauto_nml_IntValue#!${HistIntValueDayCPLRun}.0!g; 
+     s!#gtool_historyauto_nml_IntValue#!${HistIntValueDayCPLRun}.0!g;
      s!#rad_DennouAGCM_nml_RstInputFile#!${atm_wdir}/cycle$((n-1))-couple/rst_rad.nc!g;
      s!#rad_DennouAGCM_nml_SolarConst#!${nowSolarConst}.0!g;
+     s!#rad_DennouAGCM_nml_DSolarConstDt#!${DSolarConstDt}!g;
      s!#dynamics_hspl_vas83_nml_FlagVertFilter#!${FlagVerticalFilter}!g;
      s!#dynamics_hspl_vas83_nml_KMINGSVF#!${KMINGSVF}!g;
      s!#dynamics_hspl_vas83_nml_KMAXGSVF#!${KMAXGSVF}!g;

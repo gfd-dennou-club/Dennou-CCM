@@ -3,6 +3,8 @@
 require "numru/ggraph"
 require "optparse"
 require "fileutils"
+require "parallel"
+
 include NumRu
 
 opt = OptionParser.new
@@ -47,6 +49,8 @@ ClimateState = (options[:climate_state] == nil) ? CLIMATE_PARTIALICE : options[:
 
 PlanetName = "Earth"
 
+NProc=8 #Parallel.processor_count
+
 DCL::swlset('lwnd', false) if FlagOutputIMG
 
 def prep_dcl(iws, itr=1, clrmap=10)
@@ -65,10 +69,30 @@ def rename_pngfile(fbasename)
 end
 
 def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ovarname+".nc")
-  ncpathList = []
   p "read NetCDF files (#{ncname}).."
 
-  for i in BeginCombineCyc..EndCombineCyc
+  nCyc = EndCombineCyc - BeginCombineCyc + 1
+  nSubCyc = 1
+  nBlock = nCyc / nSubCyc
+  nBlock += 1 if (nCyc % nSubCyc != 0)
+  
+  index_info = Hash.new
+  subfnames = []
+  for i in 0..nBlock-1
+    beginSubCyc = i*nSubCyc + 1
+    endSubCyc = [beginSubCyc + nSubCyc - 1, EndCombineCyc].min
+    index_info[i] = { "begin_cyc"=>beginSubCyc, "end_cyc"=>endSubCyc }
+    subfnames.push( "tmp#{i}-#{ofilename}" )
+  end
+
+  ncpathList = Hash.new
+  (BeginCombineCyc..EndCombineCyc).each{|i|
+    ncpathList[i] = "#{DistDir}/tmp#{i}_#{ofilename}"
+  }
+  p ncpathList
+  
+  ret = Parallel.map(BeginCombineCyc..EndCombineCyc, :in_processes =>NProc ){|i|
+#  (BeginCombineCyc..EndCombineCyc).each{|i|
     p "#{i}." if i%10 == 0
     p "#{TargetDir}\/cycle#{i}-couple\/#{ncname}"
     gphys = GPhys::IO.open(/#{TargetDir}\/cycle#{i}-couple\/#{ncname}/, varname)
@@ -89,19 +113,16 @@ def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ova
         gphys = gphys.mean(opt)
       end
     }
-    
-    ncpath = "#{DistDir}/tmp#{i}_#{ofilename}"
-    ncpathList.push(ncpath)
-    ofile = NetCDF::create(ncpath)
+
+    ofile = NetCDF::create(ncpathList[i])
     tlen = gphys.axis("time").length
     GPhys::IO.write(ofile, gphys[false,1..tlen-1].copy.rename(ovarname))
     ofile.close
-  end
+  }
 
   p "Output.."
-
   ofile = NetCDF::create("#{DistDir}/#{ofilename}")
-  gphys = GPhys::IO.open(ncpathList, ovarname)
+  gphys = GPhys::IO.open(ncpathList.values, ovarname)
   gphys = gphys.mean("time") if meanOpt.include?("time")
   
   GPhys::IO.write(ofile, gphys)
@@ -109,7 +130,7 @@ def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ova
   ofile.close
 
   p "remove tmp files.."
-  FileUtils::rm_f(ncpathList)
+  FileUtils::rm_f(ncpathList.values)
 end
 
 def combine_ncfile_xmean_open(ncvarname, varname=ncvarname, ovarname=ncvarname, cutOpt={})

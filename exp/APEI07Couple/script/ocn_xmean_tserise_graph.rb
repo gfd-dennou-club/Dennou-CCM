@@ -21,6 +21,9 @@ CLIMATE_SNOWBALL = "SnowBallIce"
 CLIMATE_PARTIALICE = "PartialIce"
 CLIMATE_RUNAWAY = "Runaway"
 CLIMATE_WARM = "Warm"
+CLIMATE_PARTICE_COLD = "PartIceCold"
+CLIMATE_PARTICE_LARGE = "PartIceLARGE"
+
 
 cyc_start = 1
 cyc_end   = 1

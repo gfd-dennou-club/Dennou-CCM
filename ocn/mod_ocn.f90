@@ -307,7 +307,7 @@ contains
                & d=(/  TimeSecN, EndTimeSec /), i=(/ my_comp%tstep /)  &
                & )
        end if
-
+   
        call ProfUtil_RapStart('TimeLoop', 0) 
        ! Advance sea-ice component
        call sice_advance_timestep( my_comp%tstep,  & ! (in)
@@ -327,7 +327,7 @@ contains
        
        !* Call a subroutine defined by users.
        call DOGCM_Exp_driver_Do()
-       
+          
        !-----------------------------------------------------
        call ProfUtil_RapEnd('TimeLoop', 0) 
        
@@ -343,11 +343,11 @@ contains
     end do
     loop_flag = .false.
 !!$    write(*,*) "ocn: TimeLoopEnd, TimeSecN=", TimeSecN
-
+ 
   end subroutine ocn_run
   
   subroutine ocn_fin()
-
+  
     ! モジュール引用; Use statement
     !    
     use jcup_interface, only: &
@@ -539,7 +539,7 @@ contains
          & my_comp%PRC_NX, my_comp%PRC_NY          & ! (in) 
 !         & , lnx_field, lny_field                    & ! (in)
          & )
-
+  
     call get_local_field( component_name=my_comp%name, grid_name=OCN_GRID_2D, & ! (in) 
          & local_is=lis, local_ie=lie, local_js=ljs, local_je=lje             & ! (out)
          & )
@@ -662,7 +662,7 @@ contains
   !---------------------------------------------------------------------------------------------------
   
   subroutine init_jcup_interpolate()
-
+ 
     ! モジュール引用; Use statement
     !            
     use jcup_interface, only: &
@@ -751,22 +751,23 @@ contains
     use DSIce_Admin_Variable_mod, only:  &
          & xya_SIceCon, xya_SIceSfcTemp, &
          & xya_IceThick, xya_SnowThick
-    
+     
     use DSIce_Boundary_vars_mod, only: &
          & xy_SfcAlbedoAI, xy_DelSfcHFlxAI, &
          & xy_SenHFlx
-
+ 
     use DOGCM_Admin_Constants_mod, only: &
          & UNDEFVAL
     
     use DOGCM_Boundary_vars_mod, only: &
-         & xy_SfcAlbedoAO, xy_SeaSfcTemp
+         & xy_SfcAlbedoAO, xy_SeaSfcTemp, &
+         & xy_SfcHFlx_ns, xy_SfcHFlx_sr, xy_SfcHFlxIO_ns
     
     use DOGCM_Admin_Variable_mod, only: &
          & xyzaa_TRC, TRCID_PTEMP
 
     use DOGCM_Admin_TInteg_mod, only: &
-         & TimeSecB 
+         & TimeSecB, DelTime
     
     !* Dennou-CCM
     
@@ -793,22 +794,29 @@ contains
     real(DP) :: xy_SfcTemp4Atm(IAO,JAO)
     real(DP) :: xy_SfcSnow4Atm(IAO,JAO)
     real(DP) :: xy_SfcEngyFlxMod4Atm(IAO,JAO)
+    real(DP) :: SIceCon
     
     integer :: i
     integer :: j
 !!$    real(DP), parameter :: PI = acos(-1d0)
 !!$    real(DP) :: xy_Tmp(IAO,JAO)
-    
+      
     ! 実行文; Executable statement
-    
-    !$omp parallel do private(i,j)
+      
+    !$omp parallel do private(i,j, SIceCon)
     do j = JSO, JEO
     do i = ISO, IEO
-       if ( xya_SIceCon(i,j,SICE_TLN) > IceMaskMin ) then
-          xy_SfcAlbedo4Atm(i,j) = xy_SfcAlbedoAI(i,j)
-          xy_SfcTemp4Atm(i,j)   = degC2K( xya_SIceSfcTemp(i,j,SICE_TLN) )
-          xy_SfcSnow4Atm(i,j)   = xya_SnowThick(i,j,SICE_TLN)
-          xy_SfcEngyFlxMod4Atm(i,j) = xy_DelSfcHFlxAI(i,j)
+       if ( xya_SIceCon(i,j,SICE_TLN) >= IceMaskMin ) then
+          SIceCon = xya_SIceCon(i,j,SICE_TLN)
+          xy_SfcAlbedo4Atm(i,j) = SIceCon*xy_SfcAlbedoAI(i,j) + (1d0 - SIceCon)*0d0
+          xy_SfcTemp4Atm(i,j)   =   SIceCon*degC2K( xya_SIceSfcTemp(i,j,SICE_TLN) ) &
+               &                  + (1d0 - SIceCon)*xy_SeaSfcTemp(i,j)
+          xy_SfcSnow4Atm(i,j)   = SIceCon*xya_SnowThick(i,j,SICE_TLN)
+          xy_SfcEngyFlxMod4Atm(i,j) = SIceCon*xy_DelSfcHFlxAI(i,j)
+
+          ! Consider the correction of sea-ice surface energy flux due to the change of surface temperature. 
+          ! (In the current implementation, the heat energy by the correction is added to sensible heat flux. 
+          xy_SenHFlx(i,j) = xy_SenHFlx(i,j) + SIceCon*xy_DelSfcHFlxAI(i,j) 
        else
           if (xy_SfcAlbedoAI(i,j) /= UNDEFVAL) then
              xy_SfcAlbedo4Atm(i,j) = xy_SfcAlbedoAI(i,j)             
@@ -819,34 +827,39 @@ contains
           xy_SfcSnow4Atm(i,j)   = 0d0 
           xy_SfcEngyFlxMod4Atm(i,j) = 0d0
        end if
-       ! Consider the correction of sea-ice surface energy flux due to the change of surface temperature. 
-       ! (In the current implementation, the heat energy by the correction is added to sensible heat flux. 
-       xy_SenHFlx(i,j) = xy_SenHFlx(i,j) + xy_DelSfcHFlxAI(i,j) 
     end do
     end do
   
-    write(*,*) "SfcTempA=", xy_SfcTemp4Atm(ISO,JSO:JEO) - 273.15d0
-    write(*,*) "SfcAlbedoA=", xy_SfcAlbedo4Atm(ISO,JSO:JEO)
+
+    write(*,*) "-------------------------"
+    write(*,'(a,64F6.1)') "SfcTempA=", xy_SfcTemp4Atm(ISO,JSO:JEO) - 273.15d0
+    write(*,'(a,64F6.3)') "SfcAlbedoA=", xy_SfcAlbedo4Atm(ISO,JSO:JEO)
+    
+!!$    write(*,'(a,64F8.3)') "DelSfcHFlxAI=", xy_SfcEngyFlxMod4Atm(ISO,JSO:JEO)
+    
+!!$    write(*,*) "SfcHFlx=", xy_SfcHFlx_ns(ISO,JSO:JEO)+xy_SfcHFlx_sr(ISO,JSO:JEO)
+!!$    write(*,*) "BtmHFlx=", xy_SfcHFlxIO_ns(ISO,JSO:JEO)
+    
 !!$    write(*,*) "SfcSnowA=", xy_SfcSnow4Atm(ISO,JSO:JEO)
 !!$    write(*,*) "SfcEngyFlxModA=", xy_SfcEngyFlxMod4Atm(ISO,JSO:JEO)
-     
+       
 !!$    write(*,*) "--------"
     call output_var( TimeSecB, 'a2o_SenHFlx', xy_SenHFlx )
 !!$    call output_var( TimeSecB, 'a2o_SfcHFlxMod', xy_Tmp )
-              
+                      
     call ocn_set_send_2d( o2a_SfcTemp_id, xy_SfcTemp4Atm(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( o2a_SfcAlbedo_id, xy_SfcAlbedo4Atm(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( o2a_SfcSnow_id, xy_SfcSnow4Atm(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( o2a_SfcEngyFlxMod_id, xy_SfcEngyFlxMod4Atm(ISO:IEO,JSO:JEO) )
-    
+            
   contains
     subroutine ocn_set_send_2d(varpID, send_data)
       integer, intent(in) :: varpID
       real(DP), intent(in) :: send_data(:,:)
-      
+        
       call jcup_put_data(field%varp(varpID)%varp_ptr, pack(send_data, maSK=field%mask2d))
     end subroutine ocn_set_send_2d
-    
+       
 !!$    subroutine ocn_set_send(varpID, code)
 !!$      integer, intent(in) :: varpID, code
 !!$      
@@ -904,7 +917,8 @@ contains
     use DSIce_Boundary_vars_mod, only: &
          & xy_WindStressXAI => xy_WindStressUAI,            &
          & xy_WindStressYAI => xy_WindStressVAI,            &
-         & xy_SDwRFlx, xy_LDwRFlx, xy_LatHFlx, xy_SenHFlx,  &
+         & xy_SUwRFlx, xy_SDwRFlx, xy_LDwRFlx, xy_LUwRFlx,  &
+         & xy_LatHFlx, xy_SenHFlx,                          &
          & xy_DSfcHFlxAIDTs,                                &
          & xy_RainFall, xy_SnowFall, xy_Evap, xy_DLatSenHFlxDTs
 
@@ -916,9 +930,6 @@ contains
     ! 局所変数
     ! Local variables
     !    
-
-    real(DP) :: xy_LUwRFlx(IAO,JAO)
-    real(DP) :: xy_SUwRFlx(IAO,JAO)
     
     integer :: i
     integer :: j
@@ -981,11 +992,11 @@ contains
     call output_var( CurrentTimeSec, 'a2o_RainFall', xy_RainFall )
     call output_var( CurrentTimeSec, 'a2o_SnowFall', xy_SnowFall )
     call output_var( CurrentTimeSec, 'a2o_SfcAirTemp', xy_SfcAirTemp )
-      
+       
     !-------------------------------------------------------------------
-    
+          
     if( my_comp%tstep > 1 ) then
-    
+      
        !$omp parallel do collapse(2)
        do j = JSO, JEO
           do i = ISO, IEO
@@ -1013,7 +1024,7 @@ contains
     end if
          
     call DOGCM_IO_History_HistPut( 'a2o_InputMass', AvrLonLat_xy(xy_FreshWtFlxS0(ISO:IEO,JSO:JEO))*1d3)
-      
+       
   contains
     subroutine ocn_get_write(vargID, vargName, xy_getdata)
       integer, intent(in) :: vargID

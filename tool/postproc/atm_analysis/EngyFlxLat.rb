@@ -1,3 +1,4 @@
+
 #-------------------------------------------------------------
 # Copyright (c) 2015-2015 Kawai Yuta. All rights reserved.
 #-------------------------------------------------------------
@@ -38,6 +39,7 @@ gp_U, gp_V, gp_Temp, gp_Ps, gp_QVap, gp_Height = GPhysUtil.get_GPhysObjs(varList
 p gp_Temp.shape
 p gp_Ps.shape
 ofile = NetCDF::create(OutputNCName)
+
 GPhys::IO.each_along_dims_write( 
   [gp_U, gp_V, gp_Temp, gp_Ps, gp_QVap, gp_Height], ofile, AxisDef::Time){
   |u, v, temp, ps, qvap, height|
@@ -63,7 +65,7 @@ GPhys::IO.each_along_dims_write(
                  "amount of meridional moist static energy flux integrated in vertical column", "PW") , \
   ]
 }
-
 ofile.close
+
 
 

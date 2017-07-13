@@ -105,7 +105,7 @@ contains
     !
     use jcup_interface, only: &
          & jcup_init_time
-
+ 
     use field_def, only: &
          & cal_mn
 
@@ -120,7 +120,7 @@ contains
     ! 宣言文; Declareration statements
     !    
 
-    
+     
     ! 実行文; Executable statement
     !
     
@@ -620,7 +620,9 @@ contains
          & xy_SurfAirTemp, xy_DSurfHFlxDTs, xy_DSurfLatentFlxDTs,      &
          & xy_RainAtm => xy_Rain, xy_SnowAtm => xy_Snow, &
          & xyra_DelRadLUwFlux, xyra_DelRadLDwFlux, xy_SurfTemp
-!         & xy_RainAtm, xy_SnowAtm
+    !         & xy_RainAtm, xy_SnowAtm
+    use dcpam_main_mod, only: &
+         & xyzf_QMixB, xyzf_QMixA
 
     use intavr_operate, only: &
          & IntLonLat_xy
@@ -662,7 +664,9 @@ contains
     call atm_set_send_2d( a2d_SnowFall_id, xy_SnowAtm )
 
     call atm_set_send_2d( a2d_SfcAirTemp_id, xy_SurfAirTemp )
-    
+
+
+!!$
 !!$    TmpAvgGlobal = IntLonLat_xy(xy_RainAtm + xy_SnowAtm - xy_LatentAtm/LatentHeat)/(4d0*PI)
 !!$    call HistoryAutoPut( TimeSecA, 'OutputWtMass', TmpAvgGlobal)
 !!$    if(my_comp%PRC_rank==0) then
@@ -723,6 +727,7 @@ contains
     real(DP) :: xy_SfcAlbedo(0:iMax-1,jMax)
     real(DP) :: xy_SfcSnow(0:iMax-1,jMax)
     real(DP) :: xy_SfcEngyFlxMod(0:iMax-1,jMax)
+    real(DP) :: TmpAvg
     
     ! 実行文; Executable statement
     !
@@ -751,21 +756,19 @@ contains
 !!$       write(*,*) "atm: rank=", my_rank, "SurfTemp=", xy_SurfTemp(0,1:2), "lat=", y_Lat(1:2)/acos(-1d0)*180d0
 !!$    end if
 
-!!$       if(my_comp%PRC_rank==0) then
+       if(my_comp%PRC_rank==0) then
 !!$          write(*,*) "Atm: FreshWtFlxSAvg=", TmpAvgGlobalSave/6d0
-!!$          write(*,*) "SfcEngyFlxMod:", TmpAvgGlobalSave
-!!$       end if
+       end if
 !!$       TmpAvgGlobalSave = 0d0
        
 !!$       write(*,*) "Check the unit of SfcSnow.."
-       
        call agcm_update_surfprop( &
             & xy_SurfTempRecv=xy_SfcTemp, xy_SurfAlbedoRecv=xy_SfcAlbedo,            & ! (in)
             & xy_SurfSnowRecv=1d3*xy_SfcSnow,                                        & ! (in)
             & xy_SfcEngyFlxModRecv=xy_SfcEngyFlxMod*AO_COUPLING_CYCLE_SEC            & ! (in)
             & )
     end if
-
+    
   contains
     subroutine atm_get_write(vargID, vargName, xy_getdata)
       integer, intent(in) :: vargID
@@ -782,7 +785,7 @@ contains
          call output_var( CurrentTimeSec, vargName, xy_getdata )
       end if
     end subroutine atm_get_write
-    
+      
   end subroutine get_and_write_data
 
   !-----------------------------------------------------------------------------
