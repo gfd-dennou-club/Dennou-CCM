@@ -15,8 +15,8 @@ include $(TOPDIR)/Mkinclude
 
 COMPO	 = atm
 COMPOINC = $(ATM_INCLUDEFLAG)
-OBJS	 = mod_$(COMPO).o dcpam_main_mod.o
-MODS	 = mod_$(COMPO).mod dcpam_main_mod.mod
+OBJS	 = dccm_atm_mod.o mod_$(COMPO).o dcpam_main_mod.o
+MODS	 = dccm_atm_mod.mod mod_$(COMPO).mod dcpam_main_mod.mod
 LIB      = $(ATMLIB)
 
 #-----------------------------------------------

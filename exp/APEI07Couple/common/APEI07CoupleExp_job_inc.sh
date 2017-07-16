@@ -58,8 +58,8 @@ function create_dir() {
 
 # Prepare directories to save output data.
 
-cp    ${TOPDIR}/bin/atm_driver ${atm_wdir}
-cp    ${TOPDIR}/bin/ocn_driver ${ocn_wdir}
+cp    ${atm_pe} ${atm_wdir}
+cp    ${ocn_pe} ${ocn_wdir}
 cp    ${ocn_standalone_pedir}/${ocn_standalone_pename} ${ocn_wdir}/ocn_standalone
 cp -r ${ocn_standalone_libdir} ${ocn_wdir}
 

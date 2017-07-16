@@ -78,6 +78,7 @@ contains
     dlon_r = 360d0/dble(nxr); !dlat_r = 180d0/(nyr - 1)
     dlon_s = 360d0/dble(nxs); !dlat_s = 180d0/(nys - 1)
 
+    
     call FileOpen(deviceID, file=trim(filename), mode='rw')
 
     do jr=1, nyr

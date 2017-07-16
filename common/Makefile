@@ -25,7 +25,8 @@ OBJS    = \
 	field_def.o          \
 	grid_mapping_util.o  \
 	grid_mapping_util_jones99.o  \
-	interpolation_data_latlon_mod.o
+	interpolation_data_latlon_mod.o \
+        dccm_common_params_mod.o
 
 MODS    =  \
 	optionparser_mod.mod   \
@@ -35,7 +36,8 @@ MODS    =  \
 	field_def.mod          \
 	grid_mapping_util.mod  \
 	grid_mapping_util_jones99.mod  \
-	interpolation_data_latlon_mod.mod
+	interpolation_data_latlon_mod.mod \
+        dccm_common_params_mod.mod
 
 #--------------------------------------------
 

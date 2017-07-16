@@ -15,8 +15,8 @@ include $(TOPDIR)/Mkinclude
 
 COMPO	 = ocn
 COMPOINC = $(OCN_INCLUDEFLAG)
-OBJS	 = mod_$(COMPO).o
-MODS	 = mod_$(COMPO).mod
+OBJS	 = dccm_ocn_mod.o mod_$(COMPO).o
+MODS	 = dccm_ocn_mod.mod mod_$(COMPO).mod
 LIB      = $(OCNLIB)
 
 #-----------------------------------------------
@@ -43,7 +43,7 @@ realclean: realclean-sub
 realclean-sub:
 #	$(MAKE) -C dynamics realclean
 
-$(COMPO).o: $(ATM_OBJS) $(LIBDIR)/$(COMMONLIB) $(LIBDIR)/$(JINTPOBJ)
+$(COMPO).o: $(OCN_OBJS) $(LIBDIR)/$(COMMONLIB) $(LIBDIR)/$(JINTPOBJ)
 #$(COMPO).o: $(LIBDIR)/$(DYNLIB) $(LIBDIR)/$(LANDLIB)
 #$(COMPO).o: dynamics/dinamics.o
 

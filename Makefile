@@ -10,6 +10,7 @@ all clean realclean:
 	$(MAKE) -C $(OCNDIR) $@
 #	$(MAKE) -C $(LANDDIR) $@
 	$(MAKE) -C $(ATMDIR) $@
+	$(MAKE) -C $(SFCDIR) $@
 	$(MAKE) -C $(DRIVERDIR) $@
 	$(MAKE) -C $(TOOLDIR)
 
