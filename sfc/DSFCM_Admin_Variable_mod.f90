@@ -37,7 +37,8 @@ module DSFCM_Admin_Variable_mod
   real(DP), public, allocatable :: xy_LDwRFlx(:,:)
   real(DP), public, allocatable :: xya_SUwRFlx(:,:,:)
   real(DP), public, allocatable :: xya_LUwRFlx(:,:,:)
-
+  real(DP), public, allocatable :: xya_DelVarImplCPL(:,:,:)
+  
   real(DP), public, allocatable :: xy_SIceCon(:,:)
 
   real(DP), public, allocatable :: xy_RainFall(:,:)
@@ -75,6 +76,8 @@ contains
     allocate( xya_SfcHFlx_ns(IA,JA,SFC_PROP_MAX) )
     allocate( xya_SfcHFlx_sr(IA,JA,SFC_PROP_MAX) )
     allocate( xya_DSfcHFlxDTs(IA,JA,SFC_PROP_MAX) )
+
+    allocate( xya_DelVarImplCPL(IA,JA,4) )
     
   end subroutine DSFCM_Admin_Variable_Init
 
@@ -94,6 +97,8 @@ contains
     deallocate( xy_RainFall, xy_SnowFall )
 
     deallocate( xya_SfcHFlx_ns, xya_SfcHFlx_sr, xya_DSfcHFlxDTs )
+
+    deallocate( xya_DelVarImplCPL )
     
   end subroutine DSFCM_Admin_Variable_Final
   

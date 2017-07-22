@@ -13,11 +13,19 @@ include $(TOPDIR)/Mkinclude
 
 #-----------------------------------------------
 
-COMPO	 = atm
-COMPOINC = $(ATM_INCLUDEFLAG)
-OBJS	 = dccm_atm_mod.o mod_$(COMPO).o dcpam_main_mod.o dcpam_sfc_implicit_coupling_mod.o
-MODS	 = dccm_atm_mod.mod mod_$(COMPO).mod dcpam_main_mod.mod dcpam_sfc_implicit_coupling_mod.mod
-LIB      = $(ATMLIB)
+COMPO	 = sfc
+COMPOINC = $(SFC_INCLUDEFLAG)
+OBJS	 = dccm_sfc_mod.o            \
+	OptionParser_mod.o           \
+	DSFCM_Admin_Grid_mod.o       \
+	DSFCM_Admin_Variable_mod.o   \
+	DSFCM_Admin_TInteg_mod.o     \
+	DSFCM_Util_SfcBulkFlux_mod.o \
+	DSFCM_mod.o
+
+MODS	 = dccm_sfc_mod.mod        \
+	dsfcm_mod.mod
+LIB      = $(SFCLIB)
 
 #-----------------------------------------------
 
@@ -43,7 +51,7 @@ realclean: realclean-sub
 realclean-sub:
 #	$(MAKE) -C dynamics realclean
 
-$(COMPO).o: $(ATM_OBJS) $(LIBDIR)/$(COMMONLIB) $(LIBDIR)/$(JINTPOBJ)
+$(COMPO).o: $(SFC_OBJS) $(LIBDIR)/$(COMMONLIB) $(LIBDIR)/$(JINTPOBJ)
 #$(COMPO).o: $(LIBDIR)/$(DYNLIB) $(LIBDIR)/$(LANDLIB)
 #$(COMPO).o: dynamics/dinamics.o
 
@@ -57,7 +65,13 @@ $(LIBDIR)/$(COMMONLIB) $(LIBDIR)/$(JINTPOBJ):
 # dynamics/dynamics.o:
 # 	$(MAKE) -C $(DYNAMICSDIR)
 
-dccm_$(COMPO)_mod.o : dcpam_main_mod.o
-dcpam_main_mod.o: dcpam_sfc_implicit_coupling_mod.o
-mod_$(COMPO).o : dcpam_main_mod.o
+
+DSFCM_mod.o: \
+	DSFCM_Admin_Grid_mod.o \
+	DSFCM_Admin_Variable_mod.o \
+	DSFCM_Admin_TInteg_mod.o   \
+	DSFCM_Util_SfcBulkFlux_mod.o   \
+	OptionParser_mod.o
+
+dccm_sfc_mod.o: DSFCM_mod.o
 

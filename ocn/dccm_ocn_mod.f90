@@ -304,12 +304,10 @@ contains
     do while(.not. my_comp%loop_end_flag)
 
        my_comp%DelTime = TimeSecA - TimeSecN
-
-       write(*,*) "ocn: set time: TimeSecN=", TimeSecN
+       
+!!$       write(*,*) "ocn: set time: TimeSecN=", TimeSecN
        call jcup_set_time( my_comp%name,                  & ! (in)
             & my_comp%InitTimeInfo, int(my_comp%DelTime) )  ! (in)
-
-       write(*,*) "ocn: get and write data: TimeSecN=", TimeSecN       
        call get_and_write_data( TimeSecN )
        
        !-----------------------------------------------------
@@ -325,8 +323,8 @@ contains
        ! Advance sea-ice component
        call sice_advance_timestep( my_comp%tstep,  & ! (in)
             & my_comp%loop_end_flag,               & ! (out)
-!!$            & skip_flag = (.not. SICE_do)          & ! (in)
-            & skip_flag = .true. &
+            & skip_flag = (.not. SICE_do)          & ! (in)
+!!$            & skip_flag = .true. &
             & )
        call pass_field_sice2ocn()
 !!$       write(*,*) "<- SIce -----------------]"
@@ -334,8 +332,8 @@ contains
        !- Advance ocean component
        call ogcm_advance_timestep( my_comp%tstep,  & ! (in)
             & my_comp%loop_end_flag,               & ! (out)
-!!$            & skip_flag = (.not. OCN_do)           & ! (in)
-            & skip_flag = .true. &            
+            & skip_flag = (.not. OCN_do)           & ! (in)
+!!$            & skip_flag = .true. &            
             & )
        call pass_field_ocn2sice()
 !!$       write(*,*) "<- Ocn -----------------]"
@@ -351,14 +349,13 @@ contains
        call jcup_inc_calendar( my_comp%InitTimeInfo, int(my_comp%DelTime) ) ! (in)
        my_comp%tstep = my_comp%tstep + 1       
 
-       if ( EndTimeSec < TimeSecN ) then
+       if ( EndTimeSec <= TimeSecN ) then
           my_comp%loop_end_flag = .true.
        end if
-
-       write(*,*) "<-- ocn: TimeLoopEnd"       
+!!$       write(*,*) "<-- ocn: TimeLoopEnd", TimeSecN
     end do
-    loop_flag = .false.
 
+    loop_flag = .false.    
   end subroutine ocn_run
   
   subroutine ocn_fin()
@@ -368,6 +365,10 @@ contains
     use jcup_interface, only: &
          & jcup_coupling_end
 
+    use mpi
+    
+    integer :: ierr
+    
     ! 実行文; Executable statement
     !
 
@@ -376,7 +377,10 @@ contains
     call jcup_coupling_end(my_comp%InitTimeInfo, .false.)
 
     !------------------------
+
     call MessageNotify( 'M', module_name, "Shutdown ocean and sea-ice model..")
+    call MPI_Barrier(MPI_COMM_WORLD, ierr)  
+    
     call sice_shutdown()
     call ogcm_shutdown()
     !-------------------------
@@ -608,10 +612,10 @@ contains
     
     !
     call init_field_data( field, num_of_25d=GN25,                      & ! (in)
-         & num_of_varp=NUM_VAR2D_o2s, num_of_varg=2 )  ! (in)
+         & num_of_varp=NUM_VAR2D_o2s, num_of_varg=NUM_VAR2D_s2o )  ! (in)
 
     call init_field_data( field_sice, num_of_25d=GN25,                      & ! (in)
-         & num_of_varp=NUM_VAR2D_i2s, num_of_varg=0 )  ! (in)
+         & num_of_varp=NUM_VAR2D_i2s, num_of_varg=NUM_VAR2D_s2i )  ! (in)
     
     
 !!$    call init_field_data(field3d, num_of_25d=1, num_of_varp=1, num_of_varg=1)    
@@ -625,74 +629,20 @@ contains
     call jcup_def_varp( field_sice%varp(i2s_SIceCon_id)%varp_ptr, my_comp%name, i2s_SIceCon, OCN_GRID_2D )
     
     !- Variable getten from  other components
-    
+     
     call regist_jcup_var_so( s2o_SfcHFlx_ns_id, s2o_SfcHFlx_ns, 1, GMAPTAG_SFC2D_OCN2D_CONSERVE )
     call regist_jcup_var_so( s2o_SfcHFlx_sr_id, s2o_SfcHFlx_sr, 1, GMAPTAG_SFC2D_OCN2D_CONSERVE )
     call regist_jcup_var_so( s2o_SnowFall_id, s2o_SnowFall, 2, GMAPTAG_SFC2D_OCN2D_CONSERVE )
     call regist_jcup_var_so( s2o_RainFall_id, s2o_RainFall, 2, GMAPTAG_SFC2D_OCN2D_CONSERVE )
     call regist_jcup_var_so( s2o_Evap_id, s2o_Evap, 2, GMAPTAG_SFC2D_OCN2D_CONSERVE )
-    call regist_jcup_var_so( s2o_WindStressX_id, s2o_WindStressX, 1, GMAPTAG_SFC2D_OCN2D_CONSERVE )
-    call regist_jcup_var_so( s2o_WindStressY_id, s2o_WindStressY, 1, GMAPTAG_SFC2D_OCN2D_CONSERVE )
-    
-    call jcup_def_varg( field%varg(s2o_WindStressX_id)%varg_ptr, my_comp%name, s2o_WindStressX, OCN_GRID_2D, 1,  & ! (in)
-         & SEND_MODEL_NAME=sfc_comp%name, SEND_DATA_NAME=s2o_WindStressX, RECV_MODE='AVR',                         & ! (in)
-         & INTERVAL=SO_COUPLING_CYCLE_SEC, TIME_LAG=+1, MAPPING_TAG=GMAPTAG_SFC2D_OCN2D_CONSERVE, EXCHANGE_TAG=1 )   ! (in)
-
-    call jcup_def_varg( field%varg(s2o_WindStressY_id)%varg_ptr, my_comp%name, s2o_WindStressY, OCN_GRID_2D, 1,  & ! (in)
-         & SEND_MODEL_NAME=sfc_comp%name, SEND_DATA_NAME=s2o_WindStressY, RECV_MODE='AVR',                         & ! (in)
-         & INTERVAL=SO_COUPLING_CYCLE_SEC, TIME_LAG=+1, MAPPING_TAG=GMAPTAG_SFC2D_OCN2D_CONSERVE, EXCHANGE_TAG=1 )   ! (in)
- 
-    
-!!$    ocn_comp => my_comp
-!!$    call jcup_def_varg( field%varg(o2s_SfcTemp_id)%varg_ptr, my_comp%name, 'o2s_SfcTemp', SFC_GRID_2D, 1,            & ! (in)
-!!$         & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2s_SfcTemp, RECV_MODE='SNP',                               & ! (in)
-!!$         & INTERVAL=SO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_SFC2D_OCN2D_CONSERVE, EXCHANGE_TAG=1 )     ! (in)
-!!$
-!!$    call jcup_def_varg( field%varg(o2s_SfcAlbedo_id)%varg_ptr, my_comp%name, 'o2s_SfcAlbedo', SFC_GRID_2D, 1,        & ! (in)
-!!$         & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2s_SfcAlbedo, RECV_MODE='SNP',                             & ! (in)
-!!$         & INTERVAL=SO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_SFC2D_OCN2D_CONSERVE, EXCHANGE_TAG=1 )     ! (in)
-    
-!!$    !--
-!!$    call jcup_def_varg( field%varg(a2o_LDwRFlx_id)%varg_ptr, my_comp%name, 'a2o_LDwRFlx', OCN_GRID_2D, 1,          & ! (in)
-!!$         & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=a2d_LDwRFlx, RECV_MODE='AVR',                             & ! (in)
-!!$         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D_CONSERVE, EXCHANGE_TAG=2 )   ! (in)
-!!$
-!!$    call jcup_def_varg( field%varg(a2o_SDwRFlx_id)%varg_ptr, my_comp%name, 'a2o_SDwRFlx', OCN_GRID_2D, 1,          & ! (in)
-!!$         & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=a2d_SDwRFlx, RECV_MODE='AVR',                             & ! (in)
-!!$         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D_CONSERVE, EXCHANGE_TAG=2 )   ! (in)
-!!$
-!!$    call jcup_def_varg( field%varg(a2o_LUwRFlx_id)%varg_ptr, my_comp%name, 'a2o_LUwRFlx', OCN_GRID_2D, 1,          & ! (in)
-!!$         & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=a2d_LUwRFlx, RECV_MODE='AVR',                             & ! (in)
-!!$         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D_CONSERVE, EXCHANGE_TAG=2 )   ! (in)
-!!$
-!!$    call jcup_def_varg( field%varg(a2o_SUwRFlx_id)%varg_ptr, my_comp%name, 'a2o_SUwRFlx', OCN_GRID_2D, 1,          & ! (in)
-!!$         & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=a2d_SUwRFlx, RECV_MODE='AVR',                             & ! (in)
-!!$         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D_CONSERVE, EXCHANGE_TAG=2 )   ! (in)
-!!$    
-!!$    call jcup_def_varg( field%varg(a2o_LatHFlx_id)%varg_ptr, my_comp%name, 'a2o_LatHFlx', OCN_GRID_2D, 1,          & ! (in)
-!!$         & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=a2d_LatHFlx, RECV_MODE='AVR',                             & ! (in)
-!!$         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D_CONSERVE, EXCHANGE_TAG=2 )   ! (in)
-!!$
-!!$    call jcup_def_varg( field%varg(a2o_SenHFlx_id)%varg_ptr, my_comp%name, 'a2o_SenHFlx', OCN_GRID_2D, 1,          & ! (in)
-!!$         & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=a2d_SenHFlx, RECV_MODE='AVR',                             & ! (in)
-!!$         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D_CONSERVE, EXCHANGE_TAG=2 )   ! (in)
-!!$
-!!$    call jcup_def_varg( field%varg(a2o_DSfcHFlxDTs_id)%varg_ptr, my_comp%name, 'a2o_DSfcHFlxDTs', OCN_GRID_2D, 1,  & ! (in)
-!!$         & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=a2d_DSfcHFlxDTs, RECV_MODE='AVR',                         & ! (in)
-!!$         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D, EXCHANGE_TAG=2 )            ! (in)
-!!$    !--
-!!$    call jcup_def_varg( field%varg(a2o_RainFall_id)%varg_ptr, my_comp%name, 'a2o_RainFall', OCN_GRID_2D, 1,        & ! (in)
-!!$         & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=a2d_RainFall, RECV_MODE='AVR',                            & ! (in)
-!!$         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D_CONSERVE, EXCHANGE_TAG=3 )   ! (in)
-!!$    
-!!$    call jcup_def_varg( field%varg(a2o_SnowFall_id)%varg_ptr, my_comp%name, 'a2o_SnowFall', OCN_GRID_2D, 1,        & ! (in)
-!!$         & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=a2d_SnowFall, RECV_MODE='AVR',                            & ! (in)
-!!$         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D_CONSERVE, EXCHANGE_TAG=3 )   ! (in)
-!!$
-!!$
-!!$    call jcup_def_varg( field%varg(a2o_SfcAirTemp_id)%varg_ptr, my_comp%name, 'a2o_SfcAirTemp', OCN_GRID_2D, 1,    & ! (in)
-!!$         & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=a2d_SfcAirTemp, RECV_MODE='AVR',                          & ! (in)
-!!$         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D, EXCHANGE_TAG=3 )            ! (in)
+    call regist_jcup_var_so( s2o_WindStressX_id, s2o_WindStressX, 3, GMAPTAG_SFC2D_OCN2D_CONSERVE )
+    call regist_jcup_var_so( s2o_WindStressY_id, s2o_WindStressY, 3, GMAPTAG_SFC2D_OCN2D_CONSERVE )
+    call regist_jcup_var_so( s2o_DSfcHFlxDTs_id, s2o_DSfcHFlxDTs,4, GMAPTAG_SFC2D_OCN2D_CONSERVE )
+     
+    call regist_jcup_var_si( s2i_SfcHFlx_ns_id, s2i_SfcHFlx_ns, 1, GMAPTAG_SFC2D_OCN2D_CONSERVE )
+    call regist_jcup_var_si( s2i_SfcHFlx_sr_id, s2i_SfcHFlx_sr, 1, GMAPTAG_SFC2D_OCN2D_CONSERVE )
+    call regist_jcup_var_si( s2i_DSfcHFlxDTs_id, s2i_DSfcHFlxDTs, 1, GMAPTAG_SFC2D_OCN2D_CONSERVE )
+    call regist_jcup_var_si( s2i_Evap_id, s2i_Evap, 2, GMAPTAG_SFC2D_OCN2D_CONSERVE )
     
     !- Finish defining variables for jup ---------------------
     
@@ -709,6 +659,17 @@ contains
            & SEND_MODEL_NAME=sfc_comp%name, SEND_DATA_NAME=varname, RECV_MODE='AVG',                              & ! (in)
            & INTERVAL=SO_COUPLING_CYCLE_SEC, TIME_LAG=+1, MAPPING_TAG=mapping_tag, EXCHANGE_TAG=exchange_tag )      ! (in)
     end subroutine regist_jcup_var_so
+
+    subroutine regist_jcup_var_si(varid, varname, exchange_tag, mapping_tag)
+      integer, intent(in) :: varid
+      character(*), intent(in) :: varname
+      integer, intent(in) :: exchange_tag
+      integer, intent(in) :: mapping_tag
+
+      call jcup_def_varg( field_sice%varg(varid)%varg_ptr, my_comp%name, varname, OCN_GRID_2D, 1,                      & ! (in)
+           & SEND_MODEL_NAME=sfc_comp%name, SEND_DATA_NAME=varname, RECV_MODE='AVG',                              & ! (in)
+           & INTERVAL=SO_COUPLING_CYCLE_SEC, TIME_LAG=+1, MAPPING_TAG=mapping_tag, EXCHANGE_TAG=exchange_tag )      ! (in)
+    end subroutine regist_jcup_var_si
     
   end subroutine init_jcup_var
 
@@ -769,7 +730,7 @@ contains
          & my_comp%name, OCN_GRID_2D, sfc_comp%name, SFC_GRID_2D,    & ! (in) OCN_GRID_2D -> SFC_GRID_2D
          & GMAPTAG_SFC2D_OCN2D_CONSERVE )                               ! (in)
 
-    
+     
     ! Set the coefficients for SFC -> OCN interpolation 
 
     call MessageNotify('M', module_name, "Set the coefficients for interpolation..")
@@ -882,13 +843,13 @@ contains
 !!$    write(*,*) "--------"
 !!$    call output_var( TimeSecB, 'a2o_SenHFlx', xy_SenHFlx )
 !!$    call output_var( TimeSecB, 'a2o_SfcHFlxMod', xy_Tmp )
-                      
+                       
     call ocn_set_send_2d( field, o2s_SfcTemp_id, xy_SeaSfcTemp(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( field, o2s_SfcAlbedo_id, xy_SfcAlbedoAO(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( field_sice, i2s_SfcTemp_id, xy_SIceSfcTemp(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( field_sice, i2s_SfcAlbedo_id, xy_SIceAlbedo(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( field_sice, i2s_SIceCon_id, xya_SIceCon(ISO:IEO,JSO:JEO,SICE_TLN) )
-
+ 
 !!$    call ocn_set_send_2d( o2a_SfcSnow_id, xy_SfcSnow4Atm(ISO:IEO,JSO:JEO) )
 !!$    call ocn_set_send_2d( o2a_SfcEngyFlxMod_id, xy_SfcEngyFlxMod4Atm(ISO:IEO,JSO:JEO) )
     
@@ -951,17 +912,20 @@ contains
          & DOGCM_IO_History_HistPut
 
     use DSIce_Admin_TInteg_mod, only: &
-         & TIMELV_ID_N
+         & SICE_TLN => TIMELV_ID_N
     use DSIce_Admin_Variable_mod, only: &
-         & xya_IceThick, xya_SIceSfcTemp
+         & xya_IceThick, xya_SIceSfcTemp, xya_SIceCon
     
     use DSIce_Boundary_vars_mod, only: &
          & xy_WindStressXAI => xy_WindStressUAI,            &
          & xy_WindStressYAI => xy_WindStressVAI,            &
+         & xy_SfcHFlxAI0_ns, xy_SfcHFlxAI0_sr, xy_DSfcHFlxAIDTs, &
+         & xy_SfcHFlxAO0, xy_DSfcHFlxAODTs,                 &
          & xy_SUwRFlx, xy_SDwRFlx, xy_LDwRFlx, xy_LUwRFlx,  &
          & xy_LatHFlx, xy_SenHFlx,                          &
          & xy_DSfcHFlxAIDTs,                                &
-         & xy_RainFall, xy_SnowFall, xy_Evap, xy_DLatSenHFlxDTs
+         & xy_RainFall, xy_SnowFall, xy_EvapAI => xy_Evap,  &
+         & xy_DLatSenHFlxDTs
 
     
     ! 宣言文; Declareration statements
@@ -975,101 +939,74 @@ contains
     integer :: i
     integer :: j
 
+    
     ! 実行文; Executable statement
     !
+    real(DP) :: xy_EvapAO(IAO,JAO)
     
     ! Get oceanic surface temerature send by OGCM.
     !
 
-    write(*,*) "ocn: tstep=", my_comp%tstep, "get_write"
+    call ocn_get_write( field, s2o_SfcHFlx_ns_id, s2o_SfcHFlx_ns, xy_SfcHFlx0_ns ) 
+    call ocn_get_write( field, s2o_SfcHFlx_sr_id, s2o_SfcHFlx_sr, xy_SfcHFlx0_sr ) 
+    call ocn_get_write( field, s2o_DSfcHFlxDTs_id, s2o_DSfcHFlxDTs, xy_DSfcHFlxDTs ) 
+    call ocn_get_write( field, s2o_SnowFall_id, s2o_SnowFall, xy_SnowFall ) 
+    call ocn_get_write( field, s2o_RainFall_id, s2o_RainFall, xy_RainFall ) 
+    call ocn_get_write( field, s2o_Evap_id, s2o_Evap, xy_EvapAO )
+    call ocn_get_write( field, s2o_WindStressX_id, s2o_WindStressX, xy_WindStressXAO )
+    call ocn_get_write( field, s2o_WindStressY_id, s2o_WindStressY, xy_WindStressYAO )     
 
-    call ocn_get_write( s2o_SfcHFlx_ns_id, s2o_SfcHFlx_ns, xy_SfcHFlx0_ns ) 
-    call ocn_get_write( s2o_SfcHFlx_sr_id, s2o_SfcHFlx_sr, xy_SfcHFlx0_sr ) 
-    call ocn_get_write( s2o_SnowFall_id, s2o_SnowFall, xy_SnowFall ) 
-    call ocn_get_write( s2o_RainFall_id, s2o_RainFall, xy_RainFall ) 
-    call ocn_get_write( s2o_Evap_id, s2o_Evap, xy_Evap )
-    call ocn_get_write( s2o_WindStressX_id, s2o_WindStressX, xy_WindStressXAO )                                            ! (in)
-    call ocn_get_write( s2o_WindStressY_id, s2o_WindStressY, xy_WindStressYAO )     
-
-!!$       call ocn_get_write( a2o_LDwRFlx_id, "a2o_LDwRFlx",         & ! (in)
-!!$            & xy_LDwRFlx )                                          ! (in)
-!!$
-!!$       call ocn_get_write( a2o_SDwRFlx_id, "a2o_SDwRFlx",         & ! (in)
-!!$            & xy_SDwRFlx )                                          ! (in)
-!!$
-!!$       call ocn_get_write( a2o_LUwRFlx_id, "a2o_LUwRFlx",         & ! (in)
-!!$            & xy_LUwRFlx )                                          ! (in)
-!!$
-!!$       call ocn_get_write( a2o_SUwRFlx_id, "a2o_SUwRFlx",         & ! (in)
-!!$            & xy_SUwRFlx )                                          ! (in)
-!!$
-!!$       call ocn_get_write( a2o_LatHFlx_id, "a2o_LatHFlx",         & ! (in)
-!!$            & xy_LatHFlx )                                          ! (in)
-!!$
-!!$       call ocn_get_write( a2o_SenHFlx_id, "a2o_SenHFlx",         & ! (in)
-!!$            & xy_SenHFlx )                                          ! (in)         
-!!$
-!!$       call ocn_get_write( a2o_DSfcHFlxDTs_id, "a2o_DSfcHFlxDTs", & ! (in)
-!!$            & xy_DLatSenHFlxDTs )                                   ! (in)         
-!!$
-!!$       call ocn_get_write( a2o_RainFall_id, "a2o_RainFall",       & ! (in)
-!!$            & xy_RainFall )                                         ! (in)         
-!!$
-!!$       call ocn_get_write( a2o_SnowFall_id, "a2o_SnowFall",       & ! (in)
-!!$            & xy_SnowFall )                                         ! (in)         
-!!$
-!!$       call ocn_get_write( a2o_SfcAirTemp_id, "a2o_SfcAirTemp",   & ! (in)
-!!$            & xy_SfcAirTemp )                                       ! (in)
-  
+    call ocn_get_write( field_sice, s2i_SfcHFlx_ns_id, s2i_SfcHFlx_ns, xy_SfcHFlxAI0_ns ) 
+    call ocn_get_write( field_sice, s2i_SfcHFlx_sr_id, s2i_SfcHFlx_sr, xy_SfcHFlxAI0_sr ) 
+    call ocn_get_write( field_sice, s2i_DSfcHFlxDTs_id, s2i_DSfcHFlxDTs, xy_DSfcHFlxAIDTs ) 
+    call ocn_get_write( field_sice, s2i_Evap_id, s2i_Evap, xy_EvapAI )
+       
 !!$    write(*,*) "ocn: tstep=", my_comp%tstep, "output_var"
-!!$    call output_var( CurrentTimeSec, 'a2o_WindStressX', xy_WindStressXAO )
-!!$    call output_var( CurrentTimeSec, 'a2o_WindStressY', xy_WindStressYAO )
-!!$    call output_var( CurrentTimeSec, 'a2o_LDwRFlx', xy_LDwRFlx )
-!!$    call output_var( CurrentTimeSec, 'a2o_SDwRFlx', xy_SDwRFlx )
-!!$    call output_var( CurrentTimeSec, 'a2o_LUwRFlx', xy_LUwRFlx )
-!!$    call output_var( CurrentTimeSec, 'a2o_SUwRFlx', xy_SUwRFlx )
-!!$    call output_var( CurrentTimeSec, 'a2o_LatHFlx', xy_LatHFlx )
-!    call output_var( CurrentTimeSec, 'a2o_SenHFlx', xy_SenHFlx )
-!!$    call output_var( CurrentTimeSec, 'a2o_DSfcHFlxDTs', xy_DLatSenHFlxDTs )
-!!$    call output_var( CurrentTimeSec, 'a2o_RainFall', xy_RainFall )
-!!$    call output_var( CurrentTimeSec, 'a2o_SnowFall', xy_SnowFall )
-!!$    call output_var( CurrentTimeSec, 'a2o_SfcAirTemp', xy_SfcAirTemp )
+    call output_var( CurrentTimeSec, 'a2o_WindStressX', xy_WindStressXAO )
+    call output_var( CurrentTimeSec, 'a2o_WindStressY', xy_WindStressYAO )
+    call output_var( CurrentTimeSec, 'a2o_DSfcHFlxDTs', xy_DSfcHFlxDTs )
+    call output_var( CurrentTimeSec, 'a2o_RainFall', xy_RainFall )
+    call output_var( CurrentTimeSec, 'a2o_SnowFall', xy_SnowFall )
+    call output_var( CurrentTimeSec, 'a2o_Evap', xy_EvapAO )
+    call output_var( CurrentTimeSec, 'a2s_Evap', xy_EvapAI )
        
     !-------------------------------------------------------------------
           
-    if( my_comp%tstep > 1 ) then
+    if( my_comp%tstep >= 1 ) then
       
        !$omp parallel do collapse(2)
        do j = JSO, JEO
-          do i = ISO, IEO
-
-             ! For ocean model
-!!$             xy_SfcHFlx0_ns(i,j) =  xy_LUwRFlx(i,j) - xy_LDwRFlx(i,j)  &
-!!$                  &               + xy_LatHFlx(i,j) + xy_SenHFlx(i,j)   
-!!$
-!!$             xy_SfcHFlx0_sr(i,j) = xy_SUwRFlx(i,j) - xy_SDwRFlx(i,j)
+       do i = ISO, IEO
+          ! For ocean model
+          xy_FreshWtFlxS0(i,j) = (   (xy_RainFall(i,j) + xy_SnowFall(i,j)) &
+               &                   - xy_EvapAO(i,j)                        &
+               &                 )/DensFreshWater
+          xy_FreshWtFlx0(i,j) = xy_FreshWtFlxS0(i,j)
  
- 
-             xy_FreshWtFlxS0(i,j) = (   (xy_RainFall(i,j) + xy_SnowFall(i,j)) &
-                  &                   - xy_Evap(i,j)                          &
-                  &                 )/DensFreshWater
-             xy_FreshWtFlx0(i,j) = xy_FreshWtFlxS0(i,j)
- 
-             ! For sea-ice model
-             xy_WindStressXAI(i,j) = xy_WindStressXAO(i,j)
-             xy_WindStressYAI(i,j) = xy_WindStressYAO(i,j)           
-             !xy_DSfcHFlxAIDTs(i,j) = xy_DSfcHFlxDTs(i,j)
-             !xy_DLatSenHFlxDTs(i,j) = xy_DSfcHFlxDTs(i,j)
-             xy_Evap(i,j) = xy_LatHFlx(i,j)/LatentHeat    ! [kg/(m2.s)]
-          end do
+          ! For sea-ice model
+          xy_WindStressXAI(i,j) = xy_WindStressXAO(i,j)
+          xy_WindStressYAI(i,j) = xy_WindStressYAO(i,j)
+          
+          xy_SfcHFlxAO0(i,j) = xy_SfcHFlx0_ns(i,j) + xy_SfcHFlx0_sr(i,j)
+          xy_DSfcHFlxAODTs(i,j) = xy_DSfcHFlxDTs(i,j)
        end do
+       end do
+
+!!$       write(*,*) "SfcHFlxO:", xy_SfcHFlx0_ns(ISO,JSO:JEO)+xy_SfcHFlx0_sr(ISO,JSO:JEO)
+!!$       write(*,*) "SfcHFlxAI:", xy_SfcHFlxAI0_ns(ISO,JSO:JEO)+xy_SfcHFlxAI0_sr(ISO,JSO:JEO)
+!!$       write(*,*) "SfcNetHFlxAI:", &
+!!$            &   (1d0 - xya_SIceCon(ISO,JSO:JEO,SICE_TLN))*(xy_SfcHFlx0_ns(ISO,JSO:JEO)+xy_SfcHFlx0_sr(ISO,JSO:JEO)) &
+!!$            & + xya_SIceCon(ISO,JSO:JEO,SICE_TLN)*(xy_SfcHFlxAI0_ns(ISO,JSO:JEO)+xy_SfcHFlxAI0_sr(ISO,JSO:JEO))
+!!$       write(*,*) "Evap:", xy_EvapAO(ISO,JSO:JEO)
+!!$       write(*,*) "Rain:", xy_RainFall(ISO,JSO:JEO)
+!!$       write(*,*) "FreshWtFlx0:", xy_FreshWtFlxS0(ISO,JSO:JEO)
     end if
          
 !!$    call DOGCM_IO_History_HistPut( 'a2o_InputMass', AvrLonLat_xy(xy_FreshWtFlxS0(ISO:IEO,JSO:JEO))*1d3)
 
-    write(*,*) "<------ get_and_write"
   contains
-    subroutine ocn_get_write(vargID, vargName, xy_getdata)
+    subroutine ocn_get_write(field, vargID, vargName, xy_getdata)
+      type(component_field_type), intent(inout) :: field
       integer, intent(in) :: vargID
       character(*), intent(In) :: vargname
       real(DP), intent(out) :: xy_getdata(IAO,JAO)
@@ -1080,8 +1017,7 @@ contains
       if( mod(CurrentTimeSec, dble(SO_COUPLING_CYCLE_SEC)) == 0d0 ) then      
          field%recv_2d(:,:) = unpack(field%buffer1d, field%mask2d, field%recv_2d)      
          xy_getdata(ISO:IEO,JSO:JEO) = field%recv_2d
-      end if
-      
+      end if      
     end subroutine ocn_get_write
     
   end subroutine get_and_write_data
@@ -1117,13 +1053,14 @@ contains
 
     call DOGCM_IO_History_RegistVar( 'a2o_RainFall', 'IJT', 'Rain fall', 'm/s')
     call DOGCM_IO_History_RegistVar( 'a2o_SnowFall', 'IJT', 'Snow fall', 'm/s')
-    call DOGCM_IO_History_RegistVar( 'a2o_Evap', 'IJT', 'Evarporation', 'm/s')
+    call DOGCM_IO_History_RegistVar( 'a2o_Evap', 'IJT', 'Evarporation between atmosphere and ocean', 'm/s')
+    call DOGCM_IO_History_RegistVar( 'a2s_Evap', 'IJT', 'Evarporation between atmosphere and sea-ice', 'm/s')
 
     call DOGCM_IO_History_RegistVar( 'a2o_SfcAirTemp', 'IJT', 'Surface air temperature', 'K')
-
+ 
     call DOGCM_IO_History_RegistVar( 'a2o_InputMass', 'T', 'input mass to ocean and sea-ice models', 'kg.m-2.s-1' )
     call DOGCM_IO_History_RegistVar( 'a2o_SfcHFlxMod', 'IJT', 'modification of heat flux', 'K')
-    
+      
   end subroutine output_prepare
 
   subroutine output_var(CurrentTime, varname, data2d)
@@ -1262,10 +1199,10 @@ contains
  
     ! - Convert the type name into the corresponding ID ---------
     !
- 
+  
     ! Specify the governing equations used in thermodynamics model
     
-    
+     
 
     ! 印字 ; Print
     !

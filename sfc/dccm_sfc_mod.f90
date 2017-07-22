@@ -251,14 +251,10 @@ contains
 
        my_comp%DelTime = TimeSecA - TimeSecN
 
-       write(*,*) "sfc: set time, TimeSecN=", TimeSecN, "DelTime=", my_comp%DelTime
-       
        call jcup_set_time( my_comp%name,                  & ! (in)
-            & my_comp%InitTimeInfo, int(my_comp%DelTime) )  ! (in)
-
-       write(*,*) "sfc: get and write date, TimeSecN=", TimeSecN
+            & my_comp%InitTimeInfo, int(my_comp%DelTime) )  ! (in)              
        call get_and_write_data( TimeSecN )
-
+       
        !-----------------------------------------------------
        
        if (my_comp%PRC_rank==0 .and. mod(my_comp%tstep, MONITOR_STEPINT) == 0) then
@@ -271,21 +267,20 @@ contains
        call sfcm_advance_timestep( &
          & my_comp%tstep,          & ! (in)
          & my_comp%loop_end_flag,  & ! (out)
-         & skip_flag = .true. )     ! (in)
+         & skip_flag = .false. )     ! (in)
        
        call set_and_put_data( TimeSecN ) ! (in)
        call jcup_inc_calendar( my_comp%InitTimeInfo, int(my_comp%DelTime) ) ! (in)
        my_comp%tstep = my_comp%tstep + 1       
 
-       if ( EndTimeSec < TimeSecN ) then
+       if (EndTimeSec <=  TimeSecN ) then
           my_comp%loop_end_flag = .true.
        end if
-
-       write(*,*) "<-- sfc: TimeLoopEnd: TimeSecN=", TimeSecN
+!!$       write(*,*) "<-- sfc: TimeLoopEnd: TimeSecN=", TimeSecN
     end do
-    loop_flag = .false.
-
     
+    loop_flag = .false.
+     
   end subroutine sfc_run
 
   subroutine sfc_fin()
@@ -295,6 +290,9 @@ contains
     use jcup_interface, only: &
          & jcup_coupling_end
 
+    use mpi
+    
+    integer :: ierr
     ! 実行文; Executable statement
     !
     
@@ -302,6 +300,8 @@ contains
 
     !------------------------
     call MessageNotify( 'M', module_name, "Shutdown surface model..")
+    call MPI_Barrier(MPI_COMM_WORLD, ierr)  
+
     call sfcm_shutdown()
 
     !-------------------------
@@ -416,19 +416,20 @@ contains
 
     call init_field_data( field_as, num_of_25d=GN25, num_of_varp=NUM_VAR2D_s2a, num_of_varg=NUM_VAR2D_a2s)
     call init_field_data( field_so, num_of_25d=GN25, num_of_varp=NUM_VAR2D_s2o, num_of_varg=NUM_VAR2D_o2s)
-    call init_field_data( field_si, num_of_25d=GN25, num_of_varp=0, num_of_varg=NUM_VAR2D_i2s)
+    call init_field_data( field_si, num_of_25d=GN25, num_of_varp=NUM_VAR2D_s2i, num_of_varg=NUM_VAR2D_i2s)
 
     !- Variable put by my own component
     
-    call jcup_def_varp( field_as%varp(s2a_WindStressX_id)%varp_ptr, my_comp%name, s2a_WindStressX, SFC_GRID_2D )
-    call jcup_def_varp( field_as%varp(s2a_WindStressY_id)%varp_ptr, my_comp%name, s2a_WindStressY, SFC_GRID_2D )
+!!$    call jcup_def_varp( field_as%varp(s2a_WindStressX_id)%varp_ptr, my_comp%name, s2a_WindStressX, SFC_GRID_2D )
+!!$    call jcup_def_varp( field_as%varp(s2a_WindStressY_id)%varp_ptr, my_comp%name, s2a_WindStressY, SFC_GRID_2D )
     call jcup_def_varp( field_as%varp(s2a_LUwRFlx_id)%varp_ptr, my_comp%name, s2a_LUwRFlx, SFC_GRID_2D )
     call jcup_def_varp( field_as%varp(s2a_SUwRFlx_id)%varp_ptr, my_comp%name, s2a_SUwRFlx, SFC_GRID_2D )
     call jcup_def_varp( field_as%varp(s2a_SenHFlx_id)%varp_ptr, my_comp%name, s2a_SenHFlx, SFC_GRID_2D )
     call jcup_def_varp( field_as%varp(s2a_QVapMFlx_id)%varp_ptr, my_comp%name, s2a_QVapMFlx, SFC_GRID_2D )
     call jcup_def_varp( field_as%varp(s2a_SfcAlbedo_id)%varp_ptr, my_comp%name, s2a_SfcAlbedo, SFC_GRID_2D )
-    call jcup_def_varp( field_as%varp(s2a_SfcRadTemp_id)%varp_ptr, my_comp%name, s2a_SfcRadTemp, SFC_GRID_2D )
-
+!!$    call jcup_def_varp( field_as%varp(s2a_SfcRadTemp_id)%varp_ptr, my_comp%name, s2a_SfcRadTemp, SFC_GRID_2D )
+    call jcup_def_varp( field_as%varp(s2a_DelVarImplCPL_id)%varp_ptr, my_comp%name, s2a_DelVarImplCPL, SFC_GRID_2D, 4 )
+    
     call jcup_def_varp( field_so%varp(s2o_SfcHFlx_ns_id)%varp_ptr, my_comp%name, s2o_SfcHFlx_ns, SFC_GRID_2D )
     call jcup_def_varp( field_so%varp(s2o_SfcHFlx_sr_id)%varp_ptr, my_comp%name, s2o_SfcHFlx_sr, SFC_GRID_2D )    
     call jcup_def_varp( field_so%varp(s2o_SnowFall_id)%varp_ptr, my_comp%name, s2o_SnowFall, SFC_GRID_2D )    
@@ -436,7 +437,13 @@ contains
     call jcup_def_varp( field_so%varp(s2o_Evap_id)%varp_ptr, my_comp%name, s2o_Evap, SFC_GRID_2D )    
     call jcup_def_varp( field_so%varp(s2o_WindStressX_id)%varp_ptr, my_comp%name, s2o_WindStressX, SFC_GRID_2D )
     call jcup_def_varp( field_so%varp(s2o_WindStressY_id)%varp_ptr, my_comp%name, s2o_WindStressY, SFC_GRID_2D )
+    call jcup_def_varp( field_so%varp(s2o_DSfcHFlxDTs_id)%varp_ptr, my_comp%name, s2o_DSfcHFlxDTs, SFC_GRID_2D )    
 
+    call jcup_def_varp( field_si%varp(s2i_SfcHFlx_ns_id)%varp_ptr, my_comp%name, s2i_SfcHFlx_ns, SFC_GRID_2D )
+    call jcup_def_varp( field_si%varp(s2i_SfcHFlx_sr_id)%varp_ptr, my_comp%name, s2i_SfcHFlx_sr, SFC_GRID_2D )    
+    call jcup_def_varp( field_si%varp(s2i_DSfcHFlxDTs_id)%varp_ptr, my_comp%name, s2i_DSfcHFlxDTs, SFC_GRID_2D )    
+    call jcup_def_varp( field_si%varp(s2i_Evap_id)%varp_ptr, my_comp%name, s2i_Evap, SFC_GRID_2D )    
+    
     !- Variable getten from  other components
 
     call regist_jcup_var_as( a2s_WindU_id, a2s_WindU, 1, GMAPTAG_ATM2D_OCN2D )
@@ -444,15 +451,16 @@ contains
     call regist_jcup_var_as( a2s_SfcAirTemp_id, a2s_SfcAirTemp, 2, GMAPTAG_ATM2D_OCN2D )
     call regist_jcup_var_as( a2s_QVap1_id, a2s_QVap1, 2, GMAPTAG_ATM2D_OCN2D )
     call regist_jcup_var_as( a2s_SfcPress_id, a2s_SfcPress, 2, GMAPTAG_ATM2D_OCN2D )
-    call regist_jcup_var_as( a2s_Press1_id, a2s_Press1, 2, GMAPTAG_ATM2D_OCN2D )
     call regist_jcup_var_as( a2s_LDwRFlx_id, a2s_LDwRFlx, 2, GMAPTAG_ATM2D_SFC2D_CONSERVE )
     call regist_jcup_var_as( a2s_SDwRFlx_id, a2s_SDwRFlx, 3, GMAPTAG_ATM2D_SFC2D_CONSERVE )
     call regist_jcup_var_as( a2s_RainFall_id, a2s_RainFall, 3, GMAPTAG_ATM2D_SFC2D_CONSERVE )
     call regist_jcup_var_as( a2s_SnowFall_id, a2s_SnowFall, 3, GMAPTAG_ATM2D_SFC2D_CONSERVE )
+    call regist_jcup_var_as( a2s_ImplCPLCoef1_id, a2s_ImplCPLCoef1, 4, GMAPTAG_ATM2D_OCN2D, g25=4 )
+    call regist_jcup_var_as( a2s_ImplCPLCoef2_id, a2s_ImplCPLCoef2, 4, GMAPTAG_ATM2D_OCN2D, g25=4 )
     
     call regist_jcup_var_os( o2s_SfcTemp_id, o2s_SfcTemp, 1, GMAPTAG_SFC2D_OCN2D)    
     call regist_jcup_var_os( o2s_SfcAlbedo_id, o2s_SfcAlbedo, 1, GMAPTAG_SFC2D_OCN2D_CONSERVE)
-
+    
     call regist_jcup_var_is( i2s_SfcTemp_id, i2s_SfcTemp, 2, GMAPTAG_SFC2D_OCN2D)
     call regist_jcup_var_is( i2s_SfcAlbedo_id, i2s_SfcAlbedo, 2, GMAPTAG_SFC2D_OCN2D_CONSERVE)
     call regist_jcup_var_is( i2s_SIceCon_id, i2s_SIceCon, 2, GMAPTAG_SFC2D_OCN2D_CONSERVE)
@@ -462,15 +470,22 @@ contains
     call jcup_end_var_def()
 
   contains
-    subroutine regist_jcup_var_as(varid, varname, exchange_tag, mapping_tag)
+    subroutine regist_jcup_var_as(varid, varname, exchange_tag, mapping_tag, g25)
       integer, intent(in) :: varid
       character(*), intent(in) :: varname
       integer, intent(in) :: exchange_tag
       integer, intent(in) :: mapping_tag
+      integer, intent(in), optional :: g25
 
-      call jcup_def_varg( field_as%varg(varid)%varg_ptr, my_comp%name, varname, SFC_GRID_2D, 1,                      & ! (in)
-           & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=varname, RECV_MODE='SNP',                                 & ! (in)
+      integer :: g25_
+      
+      g25_ = 1
+      if (present(g25)) g25_ = g25
+
+      call jcup_def_varg( field_as%varg(varid)%varg_ptr, my_comp%name, varname, SFC_GRID_2D, g25_,             & ! (in)
+           & SEND_MODEL_NAME=atm_comp%name, SEND_DATA_NAME=varname, RECV_MODE='SNP',                           & ! (in)
            & INTERVAL=AS_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=mapping_tag, EXCHANGE_TAG=exchange_tag )   ! (in)
+      
     end subroutine regist_jcup_var_as
 
     subroutine regist_jcup_var_os(varid, varname, exchange_tag, mapping_tag)
@@ -479,9 +494,10 @@ contains
       integer, intent(in) :: exchange_tag
       integer, intent(in) :: mapping_tag
 
-      call jcup_def_varg( field_so%varg(varid)%varg_ptr, my_comp%name, varname, SFC_GRID_2D, 1,                      & ! (in)
-           & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=varname, RECV_MODE='SNP',                                 & ! (in)
+      call jcup_def_varg( field_so%varg(varid)%varg_ptr, my_comp%name, varname, SFC_GRID_2D, 1,                & ! (in)
+           & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=varname, RECV_MODE='SNP',                           & ! (in)
            & INTERVAL=SO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=mapping_tag, EXCHANGE_TAG=exchange_tag )   ! (in)
+      
     end subroutine regist_jcup_var_os
 
     subroutine regist_jcup_var_is(varid, varname, exchange_tag, mapping_tag)
@@ -490,9 +506,10 @@ contains
       integer, intent(in) :: exchange_tag
       integer, intent(in) :: mapping_tag
 
-      call jcup_def_varg( field_si%varg(varid)%varg_ptr, my_comp%name, varname, SFC_GRID_2D, 1,                      & ! (in)
-           & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=varname, RECV_MODE='SNP',                                 & ! (in)
+      call jcup_def_varg( field_si%varg(varid)%varg_ptr, my_comp%name, varname, SFC_GRID_2D, 1,                & ! (in)
+           & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=varname, RECV_MODE='SNP',                           & ! (in)
            & INTERVAL=SO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=mapping_tag, EXCHANGE_TAG=exchange_tag )   ! (in)
+      
     end subroutine regist_jcup_var_is
     
   end subroutine init_jcup_var
@@ -693,8 +710,8 @@ contains
     !
     if(my_comp%PRC_rank==0) then
        call jcup_recv_array( my_comp%name, atm_comp%name, a_Sig1Info )
+       write(*,*) "a_z1Coef:", a_Sig1Info
     end if
-    write(*,*) "a_z1Coef:", a_Sig1Info
     
   end subroutine init_jcup_interpolate
   
@@ -722,6 +739,7 @@ contains
          & xy_RainFall, xy_SnowFall,                        &
          & xya_SUwRFlx, xya_LUwRFlx,                        &
          & xya_SfcHFlx_ns, xya_SfcHFlx_sr, xya_DSfcHFlxDTs, &
+         & xya_DelVarImplCPL,                               &
          & SFC_PROP_MAX
     
     ! 宣言文; Declareration statements
@@ -741,22 +759,29 @@ contains
 
     ! 実行文; Executable statement
 
-    call sfc_set_send_2d( field_as, s2a_WindStressX_id, xya_WindStressX(:,:,SFC_PROP_MAX) )
-    call sfc_set_send_2d( field_as, s2a_WindStressY_id, xya_WindStressY(:,:,SFC_PROP_MAX) )
+!!$    call sfc_set_send_2d( field_as, s2a_WindStressX_id, xya_WindStressX(:,:,SFC_PROP_MAX) )
+!!$    call sfc_set_send_2d( field_as, s2a_WindStressY_id, xya_WindStressY(:,:,SFC_PROP_MAX) )
     call sfc_set_send_2d( field_as, s2a_LUwRFlx_id, xya_LUwRFlx(:,:,SFC_PROP_MAX) )
     call sfc_set_send_2d( field_as, s2a_SUwRFlx_id, xya_SUwRFlx(:,:,SFC_PROP_MAX) )
     call sfc_set_send_2d( field_as, s2a_SenHFlx_id, xya_SenHFlx(:,:,SFC_PROP_MAX) )
     call sfc_set_send_2d( field_as, s2a_QVapMFlx_id, xya_QVapMFlx(:,:,SFC_PROP_MAX) )
     call sfc_set_send_2d( field_as, s2a_SfcAlbedo_id, xya_SfcAlbedo(:,:,SFC_PROP_MAX) )
-    call sfc_set_send_2d( field_as, s2a_SfcRadTemp_id, xya_SfcTemp(:,:,SFC_PROP_MAX) )
-
+!!$    call sfc_set_send_2d( field_as, s2a_SfcRadTemp_id, xya_SfcTemp(:,:,SFC_PROP_MAX) )
+    call sfc_set_send_25d( field_as, s2a_DelVarImplCPL_id, xya_DelVarImplCPL, 4 )
+ 
     call sfc_set_send_2d( field_so, s2o_SfcHFlx_ns_id, xya_SfcHFlx_ns(:,:,1) )
     call sfc_set_send_2d( field_so, s2o_SfcHFlx_sr_id, xya_SfcHFlx_sr(:,:,1) )
+    call sfc_set_send_2d( field_so, s2o_DSfcHFlxDTs_id, xya_DSfcHFlxDTs(:,:,1) )
     call sfc_set_send_2d( field_so, s2o_SnowFall_id, xy_SnowFall(:,:) )
     call sfc_set_send_2d( field_so, s2o_RainFall_id, xy_RainFall(:,:) )
     call sfc_set_send_2d( field_so, s2o_Evap_id, xya_QVapMFlx(:,:,1) )
-    call sfc_set_send_2d( field_so, s2o_WindStressX_id, xya_WindStressX(:,:,1) )
-    call sfc_set_send_2d( field_so, s2o_WindStressY_id, xya_WindStressY(:,:,1) )
+    call sfc_set_send_2d( field_so, s2o_WindStressX_id, -xya_WindStressX(:,:,3) )
+    call sfc_set_send_2d( field_so, s2o_WindStressY_id, -xya_WindStressY(:,:,3) )
+
+    call sfc_set_send_2d( field_si, s2i_SfcHFlx_ns_id, xya_SfcHFlx_ns(:,:,2) )
+    call sfc_set_send_2d( field_si, s2i_SfcHFlx_sr_id, xya_SfcHFlx_sr(:,:,2) )
+    call sfc_set_send_2d( field_si, s2i_DSfcHFlxDTs_id, xya_DSfcHFlxDTs(:,:,2) )
+    call sfc_set_send_2d( field_si, s2i_Evap_id, xya_QVapMFlx(:,:,2) )
     
   contains
     subroutine sfc_set_send_2d(field, varpID, send_data)
@@ -767,11 +792,26 @@ contains
       call jcup_put_data( field%varp(varpID)%varp_ptr, &
            & pack(send_data(ISS:IES,JSS:JES), mask=field%mask2d) )
     end subroutine sfc_set_send_2d
+
+    subroutine sfc_set_send_25d(field, varpID, send_data, NumGN25)
+      type(component_field_type), intent(inout) :: field
+      integer, intent(in) :: varpID
+      integer, intent(in) :: NumGN25
+      real(DP), intent(in) :: send_data(IAS,JAS,NumGN25)
+
+      integer :: k
+
+      do k=1, NumGN25
+         field%buffer25d(:,k) = pack(send_data(ISS:IES,JSS:JES,k), mask=field%mask2d)
+      end do
+      call jcup_put_data(field%varp(varpID)%varp_ptr, field%buffer25d)
+
+    end subroutine sfc_set_send_25d
     
   end subroutine set_and_put_data
 
   subroutine get_and_write_data( CurrentTimeSec )
-
+ 
     ! モジュール引用; Use statement
     !                
 
@@ -794,7 +834,8 @@ contains
          & xy_RainFall, xy_SnowFall,                  &
          & xya_SfcVelTransCoef, xya_SfcTempTransCoef, &
          & xya_SfcQVapTransCoef,                      &
-         & xya_SfcHFlx_sr, xya_SfcHFlx_ns, xya_DSfcHFlxDTs
+         & xya_SfcHFlx_sr, xya_SfcHFlx_ns, xya_DSfcHFlxDTs, &
+         & xya_DelVarImplCPL
 
     use DSFCM_Util_SfcBulkFlux_mod, only: &
          & DSFCM_Util_SfcBulkFlux_Get
@@ -816,19 +857,22 @@ contains
     real(DP) :: xy_QVap1(IAS,JAS)
     real(DP) :: xy_Height(IAS,JAS)
     real(DP) :: xy_SfcHeight(IAS,JAS)
-    real(DP) :: xy_Press1(IAS,JAS)
     real(DP) :: xy_SfcPress(IAS,JAS)
-        
+
+    real(DP) :: xya_ImplCplCoef1(IAS,JAS,4)
+    real(DP) :: xya_ImplCplCoef2(IAS,JAS,4)
+    
     call sfc_get_write_as(field_as, a2s_WindU_id,a2s_WindU, xy_WindU ) 
     call sfc_get_write_as(field_as, a2s_WindV_id, a2s_WindV, xy_WindV ) 
     call sfc_get_write_as(field_as, a2s_SfcAirTemp_id, a2s_SfcAirTemp, xy_SfcAirTemp )
     call sfc_get_write_as(field_as, a2s_SfcPress_id, a2s_SfcPress, xy_SfcPress ) 
     call sfc_get_write_as(field_as, a2s_QVap1_id, a2s_QVap1, xy_QVap1 )
-    call sfc_get_write_as(field_as, a2s_Press1_id, a2s_Press1, xy_Press1 )     
     call sfc_get_write_as(field_as, a2s_LDwRFlx_id, a2s_LDwRFlx, xy_LDwRFlx )
     call sfc_get_write_as(field_as, a2s_SDwRFlx_id, a2s_SDwRFlx, xy_SDwRFlx )    
     call sfc_get_write_as(field_as, a2s_RainFall_id, a2s_RainFall, xy_RainFall )     
     call sfc_get_write_as(field_as, a2s_SnowFall_id, a2s_SnowFall, xy_SnowFall ) 
+    call sfc_get_write_as_25d(field_as, a2s_ImplCPLCoef1_id, a2s_ImplCPLCoef1, xya_ImplCplCoef1, 4 ) 
+    call sfc_get_write_as_25d(field_as, a2s_ImplCPLCoef2_id, a2s_ImplCPLCoef2, xya_ImplCplCoef2, 4 ) 
 
     call sfc_get_write_so(field_so, o2s_SfcTemp_id, o2s_SfcTemp, xya_SfcTemp(:,:,1) ) 
     call sfc_get_write_so(field_so, o2s_SfcAlbedo_id, o2s_SfcAlbedo, xya_SfcAlbedo(:,:,1) ) 
@@ -843,14 +887,15 @@ contains
          & xya_WindStressX, xya_WindStressY,             & ! (out)
          & xya_SenHFlx, xya_QVapMFlx, xya_LatHFlx,       & ! (out)
          & xya_SfcVelTransCoef, xya_SfcTempTransCoef, xya_SfcQVapTransCoef, & ! (out)
+         & xya_DelVarImplCPL,                            & ! (out)
          & xya_SUwRFlx, xya_LUwRFlx, &
          & xya_SfcHFlx_ns, xya_SfcHFlx_sr, xya_DSfcHFlxDTs, & ! (out)
          & xy_WindU, xy_WindV, xy_SfcAirTemp, xy_QVap1,  &
-         & xy_SDwRFlx, xy_LDwRFlx, &
+         & xy_SDwRFlx, xy_LDwRFlx, xya_ImplCplCoef1, xya_ImplCplCoef2,  &
          & xya_SfcTemp, xya_SfcAlbedo, xy_SIceCon,                &
          & a_Sig1Info, xy_SfcHeight,  xy_SfcPress                 &
          & )
-    
+
   contains
       subroutine sfc_get_write_as(field, vargID, vargName, xy_getdata)
         type(component_field_type), intent(inout) :: field
@@ -868,6 +913,27 @@ contains
 
       end subroutine sfc_get_write_as
 
+      subroutine sfc_get_write_as_25d(field, vargID, vargName, xya_getdata, NumGN25)
+        type(component_field_type), intent(inout) :: field
+        integer, intent(in) :: vargID
+        character(*), intent(In) :: vargname
+        integer, intent(in) :: NumGN25
+        real(DP), intent(out) :: xya_getdata(IAS,JAS,NumGN25)
+
+        integer :: k
+        
+        field%buffer25d(:,:) = 0d0
+        call jcup_get_data(field%varg(vargID)%varg_ptr, field%buffer25d)
+      
+        if( mod(CurrentTimeSec, dble(AS_COUPLING_CYCLE_SEC)) == 0d0 ) then
+           do k=1,NumGN25
+              field%recv_25d(:,:,k) = unpack(field%buffer25d(:,k), field%mask2d, field%recv_25d(:,:,k))              
+              xya_getdata(ISS:IES,JSS:JES,k) = field%recv_25d(:,:,k)
+           end do
+        end if
+
+      end subroutine sfc_get_write_as_25d
+      
       subroutine sfc_get_write_so(field, vargID, vargName, xy_getdata)
         type(component_field_type), intent(inout) :: field
         integer, intent(in) :: vargID

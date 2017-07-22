@@ -109,15 +109,18 @@ contains
        & xya_WindStressX, xya_WindStressY, &
        & xya_SenHFlx, xya_QVapMFlx, xya_LatHFlx,  &
        & xya_SfcVelTransCoef, xya_SfcTempTransCoef, xya_SfcQVapTransCoef, & ! (out)
-       & xya_SUwRFlx, xya_LUwRFlx, &
+       & xya_DelVarImplCPL,                              &
+       & xya_SUwRFlx, xya_LUwRFlx,                      &
        & xya_SfcHFlx_ns, xya_SfcHFlx_sr, xya_DSfcHFlxDTs, &
        & xy_WindU, xy_WindV, xy_SfcAirTemp, xy_QVap1,  &
-       & xy_SDwRFlx, xy_LDwRFlx,                       &
+       & xy_SDwRFlx, xy_LDwRFlx, xya_ImplCplCoef1, xya_ImplCplCoef2,                       &
        & xya_SfcTemp, xya_SfcAlbedo,  xy_SIceCon,      &
        & a_Sig1Info, xy_SfcHeight,                     &
        & xy_SfcPress                                   & 
        & )
 
+    implicit none
+    
     real(DP), intent(out) :: xya_WindStressX(IA,JA,SFC_PROP_MAX)
     real(DP), intent(out) :: xya_WindStressY(IA,JA,SFC_PROP_MAX)
     real(DP), intent(out) :: xya_SenHFlx(IA,JA,SFC_PROP_MAX)
@@ -129,6 +132,7 @@ contains
     real(DP), intent(out) :: xya_SfcHFlx_ns(IA,JA,SFC_PROP_MAX)
     real(DP), intent(out) :: xya_SfcHFlx_sr(IA,JA,SFC_PROP_MAX)
     real(DP), intent(out) :: xya_DSfcHFlxDTs(IA,JA,SFC_PROP_MAX)
+    real(DP), intent(out) :: xya_DelVarImplCPL(IA,JA,4)
     real(DP), intent(out) :: xya_SUwRFlx(IA,JA,SFC_PROP_MAX)
     real(DP), intent(out) :: xya_LUwRFlx(IA,JA,SFC_PROP_MAX)    
     real(DP), intent(in) :: xy_WindU(IA,JA)
@@ -137,6 +141,8 @@ contains
     real(DP), intent(in) :: xy_QVap1(IA,JA)
     real(DP), intent(in) :: xy_SDwRFlx(IA,JA)
     real(DP), intent(in) :: xy_LDwRFlx(IA,JA)
+    real(DP), intent(in) :: xya_ImplCplCoef1(IA,JA,4)
+    real(DP), intent(in) :: xya_ImplCplCoef2(IA,JA,4)
     real(DP), intent(inout) :: xya_SfcTemp(IA,JA,SFC_PROP_MAX)
     real(DP), intent(inout) :: xya_SfcAlbedo(IA,JA,SFC_PROP_MAX)
     real(DP), intent(in) :: xy_SIceCon(IA,JA)    
@@ -152,7 +158,7 @@ contains
     
     real(DP) :: xya_SfcRoughLengthMom(IA,JA,2)
     real(DP) :: xya_SfcRoughLengthHeat(IA,JA,2)
-    real(DP) :: xya_SfcHumdCoef(IA,JA,2)
+    real(DP) :: xya_SfcHumdCoef(IA,JA,SFC_PROP_MAX)
     real(DP) :: xya_SfcBulkRiNum(IA,JA,2)
     real(DP) :: xy_SfcBulkCoefMomInNeutCond(IA,JA)
     real(DP) :: xy_SfcBulkCoefHeatInNeutCond(IA,JA)
@@ -177,9 +183,16 @@ contains
     real(DP) :: xy_Height(IA,JA)
     real(DP) :: xy_Press1(IA,JA)
 
-    write(*,*) "WindU=", xy_WindU(IS,JS:JE)    
-    write(*,*) "SfcTemp=", xya_SfcTemp(IS,JS:JE,1)    
+    logical :: xy_CalcFlag(IA,JA)
+    
+    integer :: SPMAX
 
+    real(DP) :: a_f(4)
+    real(DP) :: a_Gamma(4)
+    real(DP) :: DFsDT1
+    
+    SPMAX = SFC_PROP_MAX
+    
     xya_SfcRoughLengthMom  = RoughLength
     xya_SfcRoughLengthHeat = RoughLenHeatFactor*xya_SfcRoughLengthMom
     xya_SfcHumdCoef        = 1d0
@@ -187,19 +200,16 @@ contains
     a_LatentHeatLocal(1) = LatentHeat
     a_LatentHeatLocal(2) = LatentHeat + LatentHeatFusion
     
-    !$omp parallel 
+    !$omp parallel private(n)
     !$omp do collapse(2)
     do j=JS, JE
     do i=IS, IE
        xya_Frac(i,j,1) = 1d0 - xy_SIceCon(i,j)
        xya_Frac(i,j,2) = xy_SIceCon(i,j)
        
-       xya_SfcQVapSat(i,j,1) = EpsV * Es0 / xy_SfcPress(i,j)                                               &
-            & * exp( LatentHeat  / GasRWet * (1d0/273d0 - 1d0/xya_SfcTemp(i,j,1)) ) 
-       xya_SfcQVapSat(i,j,2) = EpsV * Es0 / xy_SfcPress(i,j)                                               &
-            & * exp( (LatentHeat + LatentHeatFusion) / GasRWet * (1d0/273d0 - 1d0/xya_SfcTemp(i,j,2)) ) 
-
-       do n=1, SFC_PROP_MAX-1
+       do n=1, SPMAX-1
+          xya_SfcQVapSat(i,j,n) = EpsV * Es0 / xy_SfcPress(i,j)                                               &
+               & * exp( a_LatentHeatLocal(n)  / GasRWet * (1d0/273d0 - 1d0/xya_SfcTemp(i,j,n)) ) 
           xya_SfcVirTemp(i,j,n) = xya_SfcTemp(i,j,n) * ( 1d0 + ((( 1d0/EpsV ) - 1d0) * xya_SfcQVapSat(i,j,n)) )
        end do
        xy_VirTemp(i,j) = xy_SfcAirTemp(i,j) * ( 1d0 + ((( 1d0/EpsV ) - 1d0) * xy_QVap1(i,j)) )
@@ -213,19 +223,25 @@ contains
        xy_Height(i,j) = xy_SfcHeight(i,j) + &
             & GasRDry/Grav * xy_VirTemp(i,j) * (1d0 - a_Sig1Info(1))
 
-       xya_WindStressX(i,j,SFC_PROP_MAX) = 0d0
-       xya_WindStressY(i,j,SFC_PROP_MAX) = 0d0
-       xya_SenHFlx(i,j,SFC_PROP_MAX) = 0d0
-       xya_LatHFlx(i,j,SFC_PROP_MAX) = 0d0
-       xya_QvapMFlx(i,j,SFC_PROP_MAX) = 0d0
+       xya_WindStressX(i,j,SPMAX) = 0d0
+       xya_WindStressY(i,j,SPMAX) = 0d0
+       xya_SenHFlx(i,j,SPMAX) = 0d0
+       xya_LatHFlx(i,j,SPMAX) = 0d0
+       xya_QvapMFlx(i,j,SPMAX) = 0d0
+       xya_SUwRFlx(i,j,SPMAX) = 0d0
+       xya_LUwRFlx(i,j,SPMAX) = 0d0
+       
+       xya_SfcTemp(i,j,SPMAX) = 0d0
+       xya_SfcAlbedo(i,j,SPMAX) = 0d0
 
-       xya_SfcTemp(i,j,SFC_PROP_MAX) = 0d0
-       xya_SfcAlbedo(i,j,SFC_PROP_MAX) = 0d0
+       xya_SfcVelTransCoef(i,j,SPMAX) = 0d0
+       xya_SfcTempTransCoef(i,j,SPMAX) = 0d0
+       xya_SfcQVapTransCoef(i,j,SPMAX) = 0d0       
     end do
     end do
     !$omp end parallel
-    
-    do n=1, SFC_PROP_MAX-1
+
+    do n=1, SPMAX-1
 
        
        !$omp parallel do collapse(2) private(SfcBulkCoefMomInNeutCondTmp)
@@ -249,13 +265,20 @@ contains
                &       - xya_SfcVirTemp(i,j,n) / xy_SfcExner(i,j) )          &
                &   / max( xy_SfcVelAbs(i,j), VelMinForRi )**2                &
                &   * ( xy_Height(i,j) - xy_SfcHeight(i,j) )
+
+          if (n == 1) then ! Ocean 
+             xy_CalcFlag(i,j) = .true.
+          else if(n == 2) then ! Sea-ice
+             xy_CalcFlag(i,j) = (xya_Frac(i,j,n) > 1d-12)
+          end if          
+
        end do
        end do
   
        call BulkCoefL82( &
             & xya_SfcBulkRiNum(:,:,n),  xya_SfcRoughLengthMom(:,:,n) , xya_SfcRoughLengthHeat(:,:,n),  & ! (in)
             & xy_SfcHeight, xy_Height,                                                                 & ! (in)
-            & xy_SfcBulkCoefMomInNeutCond, xy_SfcBulkCoefHeatInNeutCond, xya_Frac(:,:,n),              & ! (in)
+            & xy_SfcBulkCoefMomInNeutCond, xy_SfcBulkCoefHeatInNeutCond, xy_CalcFlag,                  & ! (in)
             & xya_SfcVelBulkCoef(:,:,n), xya_SfcTempBulkCoef(:,:,n), xya_SfcQVapBulkCoef(:,:,n),       & ! (out)
             & xy_BetaW, xya_SfcMOLength(:,:,n)                                                         & ! (out)
             & )
@@ -263,95 +286,158 @@ contains
        !$omp parallel do collapse(2)
        do j=JS, JE
        do i=IS, IE
+
+          !--
+          
           xya_SfcVelTransCoef(i,j,n) = &
                & xya_SfcVelBulkCoef(i,j,n)*xy_SfcPress(i,j)/(GasRDry * xya_SfcVirTemp(i,j,n)) &
                & * min( max( xy_SfcVelAbs(i,j), VelMinForVel), VelMaxForVel)
           
-          xya_WindStressX(i,j,n) = - xya_SfcVelTransCoef(i,j,n) * xy_WindU(i,j)
-          xya_WindStressY(i,j,n) = - xya_SfcVelTransCoef(i,j,n) * xy_WindV(i,j)
-
-          xya_WindStressX(i,j,SFC_PROP_MAX) = xya_WindStressX(i,j,SFC_PROP_MAX) + &
-               & xya_Frac(i,j,n)*xya_WindStressX(i,j,n)
-          xya_WindStressY(i,j,SFC_PROP_MAX) = xya_WindStressY(i,j,SFC_PROP_MAX) + &
-               & xya_Frac(i,j,n)*xya_WindStressY(i,j,n)
-
-          !
           xya_SfcTempTransCoef(i,j,n) = &
                & xya_SfcTempBulkCoef(i,j,n)*xy_SfcPress(i,j)/(GasRDry * xya_SfcVirTemp(i,j,n)) &
                & * min( max( xy_SfcVelAbs(i,j), VelMinForTemp), VelMaxForTemp)
-
-          xya_SenHFlx(i,j,n) = - CpDry * xy_SfcExner(i,j) * xya_SfcTempTransCoef(i,j,n) &
-               & * (xy_SfcAirTemp(i,j)/xy_Exner(i,j) - xya_SfcTemp(i,j,n)/xy_SfcExner(i,j))
-          xya_SenHFlx(i,j,SFC_PROP_MAX) = xya_SenHFlx(i,j,SFC_PROP_MAX) + &
-               & xya_Frac(i,j,n)*xya_SenHFlx(i,j,n)
           
           xya_SfcQVapTransCoef(i,j,n) = &
                & xya_SfcQVapBulkCoef(i,j,n)*xy_SfcPress(i,j)/(GasRDry * xya_SfcVirTemp(i,j,n)) &
                & * min( max( xy_SfcVelAbs(i,j), VelMinForQVap), VelMaxForQVap)
-          xya_QVapMFlx(i,j,n) = - xya_SfcHumdCoef(i,j,n) * xya_SfcQVapTransCoef(i,j,n) &
-               & * (xy_QVap1(i,j) - xya_SfcQVapSat(i,j,n))
-          xya_QVapMFlx(i,j,SFC_PROP_MAX) = xya_QVapMFlx(i,j,SFC_PROP_MAX) + &
-               & xya_Frac(i,j,n)*xya_QVapMFlx(i,j,n)
 
+          !--
+          if ( xy_CalcFlag(i,j) ) then
+             xya_WindStressX(i,j,n) = - xya_SfcVelTransCoef(i,j,n) * xy_WindU(i,j)
+             xya_WindStressY(i,j,n) = - xya_SfcVelTransCoef(i,j,n) * xy_WindV(i,j)
+
+             xya_SenHFlx(i,j,n) = - CpDry * xy_SfcExner(i,j) * xya_SfcTempTransCoef(i,j,n) &
+                  & * (xy_SfcAirTemp(i,j)/xy_Exner(i,j) - xya_SfcTemp(i,j,n)/xy_SfcExner(i,j))
+             
+             xya_QVapMFlx(i,j,n) = - xya_SfcHumdCoef(i,j,n) * xya_SfcQVapTransCoef(i,j,n) &
+                  & * (xy_QVap1(i,j) - xya_SfcQVapSat(i,j,n))
+          
+             xya_LatHFlx(i,j,n) = a_LatentHeatLocal(n)*xya_QVapMFlx(i,j,n)
+
+             xya_LUwRFlx(i,j,n) = StB*xya_SfcTemp(i,j,n)**4
+             xya_SUwRFlx(i,j,n) = xya_SfcAlbedo(i,j,n)*xy_SDwRFlx(i,j)
+                          
+             !---          
+             xya_SfcTemp(i,j,SPMAX) = xya_SfcTemp(i,j,SPMAX) + xya_Frac(i,j,n)*xya_SfcTemp(i,j,n)**4
+             xya_SfcAlbedo(i,j,SPMAX) = xya_SfcAlbedo(i,j,SPMAX) + xya_Frac(i,j,n)*xya_SfcAlbedo(i,j,n)
+
+             xya_WindStressX(i,j,SPMAX) = xya_WindStressX(i,j,SPMAX) + xya_Frac(i,j,n)*xya_WindStressX(i,j,n)
+             xya_WindStressY(i,j,SPMAX) = xya_WindStressY(i,j,SPMAX) + xya_Frac(i,j,n)*xya_WindStressY(i,j,n)
+             xya_SenHFlx(i,j,SPMAX) = xya_SenHFlx(i,j,SPMAX) + xya_Frac(i,j,n)*xya_SenHFlx(i,j,n)          
+             xya_QVapMFlx(i,j,SPMAX) = xya_QVapMFlx(i,j,SPMAX) + xya_Frac(i,j,n)*xya_QVapMFlx(i,j,n)
+             xya_LatHFlx(i,j,SPMAX) = xya_LatHFlx(i,j,SPMAX) + xya_Frac(i,j,n)*xya_LatHFlx(i,j,n)
+             xya_LUwRFlx(i,j,SPMAX) = xya_LUwRFlx(i,j,SPMAX) + xya_Frac(i,j,n)*xya_LUwRFlx(i,j,n)
+             xya_SUwRFlx(i,j,SPMAX) = xya_SUwRFlx(i,j,SPMAX) + xya_Frac(i,j,n)*xya_SUwRFlx(i,j,n)
+
+             xya_SfcVelTransCoef(i,j,SPMAX) = xya_SfcVelTransCoef(i,j,SPMAX) + xya_Frac(i,j,n)*xya_SfcVelTransCoef(i,j,n)
+             xya_SfcTempTransCoef(i,j,SPMAX) = xya_SfcTempTransCoef(i,j,SPMAX) + xya_Frac(i,j,n)*xya_SfcTempTransCoef(i,j,n)
+             xya_SfcQVapTransCoef(i,j,SPMAX) = xya_SfcQVapTransCoef(i,j,SPMAX) + xya_Frac(i,j,n)*xya_SfcQVapTransCoef(i,j,n)
+             
+          else
+             xya_WindStressX(i,j,n) = 0d0
+             xya_WindStressY(i,j,n) = 0d0
+             xya_SenHFlx(i,j,n)     = 0d0
+             xya_QVapMFlx(i,j,n)    = 0d0
+             xya_LatHFlx(i,j,n)     = 0d0
+             xya_LUwRFlx(i,j,n)     = 0d0
+             xya_SUwRFlx(i,j,n)     = 0d0
+          end if
+          !------------------------------------------------------------------------
+       end do
+       end do
+    end do
+
+!!$    write(*,*) "WindStressX0:", xya_WindStressX(IS,JS:JE,3)
+!!$    write(*,*) "SenHFlx0:", xya_SenHFlx(IS,JS:JE,3)
+    
+    !$omp parallel private (i, j, n, a_Gamma, a_f, DFsDT1)
+    !$omp do collapse(2)
+    do j = JS, JE
+    do i = IS, IE
+       DFsDT1 = - CpDry * xy_SfcExner(i,j) * xya_SfcTempTransCoef(i,j,SPMAX) / xy_Exner(i,j)
+       a_Gamma(1) = 1d0 / (xya_ImplCplCoef1(i,j,1) + xya_SfcVelTransCoef(i,j,SPMAX))
+       a_Gamma(2) = 1d0 / (xya_ImplCplCoef1(i,j,2) + xya_SfcVelTransCoef(i,j,SPMAX))       
+       a_Gamma(3) = 1d0 / (xya_ImplCplCoef1(i,j,3) - DFsDT1)
+       a_Gamma(4) = 1d0 / (xya_ImplCplCoef1(i,j,4) + xya_SfcHumdCoef(i,j,SPMAX) * xya_SfcQVapTransCoef(i,j,SPMAX))
+ 
+       a_f(1) = a_Gamma(1)*(xya_WindStressX(i,j,SPMAX) + xya_ImplCplCoef2(i,j,1))
+       a_f(2) = a_Gamma(2)*(xya_WindStressY(i,j,SPMAX) + xya_ImplCplCoef2(i,j,2))
+       a_f(3) = a_Gamma(3)*(xya_SenHFlx(i,j,SPMAX) + xya_ImplCplCoef2(i,j,3))
+       a_f(4) = a_Gamma(4)*(xya_QVapMFlx(i,j,SPMAX) + xya_ImplCplCoef2(i,j,4))
+
+       xya_DelVarImplCPL(i,j,:) = a_f(:)
+       
+       do n=1, SPMAX
+          xya_WindStressX(i,j,n) = xya_WindStressX(i,j,n) - xya_SfcVelTransCoef(i,j,n) * a_f(1)
+          xya_WindStressY(i,j,n) = xya_WindStressY(i,j,n) - xya_SfcVelTransCoef(i,j,n) * a_f(2)
+
+          xya_SenHFlx(i,j,n) = xya_SenHFlx(i,j,n) &
+               & -  CpDry * xy_SfcExner(i,j) / xy_Exner(i,j) * xya_SfcTempTransCoef(i,j,n) * a_f(3)
+          
+          xya_QVapMFlx(i,j,n) = xya_QVapMFlx(i,j,n) &
+               & -  xya_SfcHumdCoef(i,j,n)*xya_SfcQVapTransCoef(i,j,n) * a_f(4)
           xya_LatHFlx(i,j,n) = a_LatentHeatLocal(n)*xya_QVapMFlx(i,j,n)
-          xya_LatHFlx(i,j,SFC_PROP_MAX) = xya_LatHFlx(i,j,SFC_PROP_MAX) + &
-               & xya_Frac(i,j,n)*xya_LatHFlx(i,j,n)
+       end do       
+    end do
+    end do
 
-          xya_SfcTemp(i,j,SFC_PROP_MAX) = xya_SfcTemp(i,j,SFC_PROP_MAX) + &
-               & xya_Frac(i,j,n)*xya_SfcTemp(i,j,n)
+    !$omp do collapse(2)
+    do n = 1, SPMAX-1
+    do j = JS, JE
+    do i = IS, IE
 
-          xya_SfcAlbedo(i,j,SFC_PROP_MAX) = xya_SfcAlbedo(i,j,SFC_PROP_MAX) + &
-               & xya_Frac(i,j,n)*xya_SfcAlbedo(i,j,n)
-
-          xya_LUwRFlx(i,j,n) = StB*xya_SfcTemp(i,j,n)**4
-          xya_SUwRFlx(i,j,n) = xya_SfcAlbedo(i,j,n)*xy_SDwRFlx(i,j)
-
+       if (n == 1) then ! Ocean 
+          xy_CalcFlag(i,j) = .true.
+       else if(n == 2) then ! Sea-ice
+          xy_CalcFlag(i,j) = (xya_Frac(i,j,n) > 1d-12)
+       end if
+       
+       if (xy_CalcFlag(i,j)) then
+          !--             
           xya_SfcHFlx_ns(i,j,n) = &
                & + xya_LUwRFlx(i,j,n) - xy_LDwRFlx(i,j)      &
                & + xya_LatHFlx(i,j,n) + xya_SenHFlx(i,j,n)
           
           xya_SfcHFlx_sr(i,j,n) = xya_SUwRFlx(i,j,n) - xy_SDwRFlx(i,j)
-
-          xya_DSfcHFlxDTs(i,j,n) = 0d0
           
-       end do
-       end do
+          xya_DSfcHFlxDTs(i,j,n) = &
+               & + 4d0*StB*xya_SfcTemp(i,j,n)**3         &
+               & + CpDry*xya_SfcTempTransCoef(i,j,n)     &
+                  & + a_LatentHeatLocal(n)*xya_SfcHumdCoef(i,j,n)*xya_SfcQVapTransCoef(i,j,n)         &
+                  &     *( a_LatentHeatLocal(n)*xya_SfcQVapSat(i,j,n)/(GasRWet*xya_SfcTemp(i,j,n)**2) )   ! DQsta/DTs
+       else
+          xya_SfcHFlx_ns(i,j,n)  = 0d0
+          xya_SfcHFlx_sr(i,j,n)  = 0d0
+          xya_DSfcHFlxDTs(i,j,n) = 0d0
+       end if
+    end do
+    end do
     end do
 
-!!$    write(*,*) "Height:", xy_Height(IS,JS:JE)
-!!$    write(*,*) "SfcPress:", xy_SfcPress(IS,JS:JE)    
-!!$    write(*,*) "SfcVirTemp:", xya_SfcVirTemp(IS,JS:JE,1)
-!!$    write(*,*) "VirTemp:", xy_VirTemp(IS,JS:JE)
+    !$omp end parallel
+    
 !!$    write(*,*) "SeaSfcTemp:", xya_SfcTemp(IS,JS:JE,1)
+!!$    write(*,*) "LUwRFlx:", xya_LUwRFlx(IS,JS:JE,1)
+!!$    write(*,*) "LatHFlx:", xya_LatHFlx(IS,JS:JE,1)
 !!$    write(*,*) "SIceSfcTemp:", xya_SfcTemp(IS,JS:JE,2)
-!!$    write(*,*) "OcnFrac", xya_Frac(IS,JS:JE,1)
-    write(*,*) "SIceFrac", xya_Frac(IS,JS:JE,2)
-!!$    write(*,*) "WindStressX:", xya_WindStressX(IS,JS:JE,1)
-    write(*,*) "U:", sum(xy_WindU(IS:IE,JS:JE),1)/64d0    
-    write(*,*) "WindStressX:", sum(xya_WindStressX(IS:IE,JS:JE,3),1)/64d0
-!!$    write(*,*) "VelBulkCoef1:", sum(xya_SfcVelBulkCoef(IS:IE,JS:JE,1),1)/64d0
-!!$    write(*,*) "VelBulkCoef2:", sum(xya_SfcVelBulkCoef(IS:IE,JS:JE,2),1)/64d0
-!!$    write(*,*) "VelTransCoef1:", sum(xya_SfcVelTransCoef(IS:IE,JS:JE,1),1)/64d0
-!!$    write(*,*) "VelTransCoef2:", sum(xya_SfcVelTransCoef(IS:IE,JS:JE,2),1)/64d0
-!!$    write(*,*) "VelTransCoef:", sum(xya_SfcVelTransCoef(IS:IE,JS:JE,3),1)/64d0
-!!$    write(*,*) "SenHFlx:", xya_SenHFlx(IS,JS:JE,1)
-!!$    write(*,*) "SenHFlx:", xya_SenHFlx(IS,JS:JE,2)
-    write(*,*) "SenHFlx:", sum(xya_SenHFlx(IS:IE,JS:JE,3),1)/64d0
-    write(*,*) "LatHFlx:", sum(xya_LatHFlx(IS:IE,JS:JE,SFC_PROP_MAX),1)/64d0
-
+!!$    write(*,*) "LUwRFlx:", xya_LUwRFlx(IS,JS:JE,2)
+!!$    write(*,*) "LatHFlx:", xya_LatHFlx(IS,JS:JE,2)
 !!$    write(*,*) "WindStressX:", xya_WindStressX(IS,JS:JE,2)
-!!$    write(*,*) "WindStressX:", xya_WindStressX(IS,JS:JE,3)
-
+!!$    write(*,*) "WindStressX*:", xya_WindStressX(IS,JS:JE,3)
+!!$    write(*,*) "SenHFlx*:", xya_SenHFlx(IS,JS:JE,3)
+!!$    write(*,*) "DelUImpCPL:", xya_DelVarImplCPL(IS,JS:JE,1)
+!!$    stop
+    
   end subroutine DSFCM_Util_SfcBulkFlux_Get
 
   !-----------------------------------------
 
   subroutine BulkCoefL82( &
-    & xy_SfcBulkRiNum,  xy_SfcRoughLengthMom , xy_SfcRoughLengthHeat,  & ! (in)
-    & xy_SfcHeight, xy_Height,                                          & ! (in)
-    & xy_SfcBulkCoefMomInNeutCond, xy_SfcBulkCoefHeatInNeutCond, xy_Frac,       & ! (in)
-    & xy_SfcVelBulkCoef, xy_SfcTempBulkCoef, xy_SfcQVapBulkCoef,       & ! (out)
-    & xy_BetaW, xy_SfcMOLength                                           & ! (out)
+    & xy_SfcBulkRiNum,  xy_SfcRoughLengthMom , xy_SfcRoughLengthHeat,          & ! (in)
+    & xy_SfcHeight, xy_Height,                                                 & ! (in)
+    & xy_SfcBulkCoefMomInNeutCond, xy_SfcBulkCoefHeatInNeutCond, xy_CalcFlag,  & ! (in)
+    & xy_SfcVelBulkCoef, xy_SfcTempBulkCoef, xy_SfcQVapBulkCoef,               & ! (out)
+    & xy_BetaW, xy_SfcMOLength                                                 & ! (out)
     & )
 
     ! 宣言文 ; Declaration statements
@@ -363,7 +449,7 @@ contains
     real(DP), intent(in):: xy_Height (IA,JA)
     real(DP), intent(in):: xy_SfcBulkCoefMomInNeutCond (IA,JA)
     real(DP), intent(in):: xy_SfcBulkCoefHeatInNeutCond(IA,JA)
-    real(DP), intent(in) :: xy_Frac(IA,JA)
+    logical, intent(in) :: xy_CalcFlag(IA,JA)
     real(DP), intent(out):: xy_SfcVelBulkCoef (IA,JA)
     real(DP), intent(out):: xy_SfcTempBulkCoef (IA,JA)
     real(DP), intent(out):: xy_SfcQVapBulkCoef (IA,JA)
@@ -388,11 +474,11 @@ contains
     ! Parameterization by Louis et al. (1982)
     !
     
-    !$omp parallel do
+    !$omp parallel do collapse(2) private(SfcBulkRinum)
     do j = JS, JE
     do i = IS, IE
 
-       if (xy_Frac(i,j) > 1D-12) then
+       if (xy_CalcFlag(i,j)) then
           if ( xy_SfcBulkRiNum(i,j) > 0.0_DP ) then 
 
              xy_SfcVelBulkCoef(i,j) =                                       &

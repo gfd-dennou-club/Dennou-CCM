@@ -12,9 +12,6 @@ program main
     call sfc_run(loop_flag)
   end do
 
-  call MPI_Barrier(MPI_COMM_WORLD, ierr)  
   call sfc_fin()
-
-  stop
 
 end program main

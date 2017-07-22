@@ -121,7 +121,7 @@ program gmapgen_main
 
      call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_AS_NAME, &
           & x_LonA, y_LatA, x_LonS, y_LatS,                    &
-          & x_IntWtLonA, y_IntWtLatA, x_IntWtLonS, y_IntWtLatS, 1 )
+          & x_IntWtLonA, y_IntWtLatA, x_IntWtLonS, y_IntWtLatS, 2 )
      
      call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_SA_NAME, &
           & x_LonS, y_LatS, x_LonA, y_LatA,                    &

@@ -62,7 +62,9 @@ module dccm_atm_mod
        & GMAPFILENAME_SA,                       &
        & GMAPFILENAME_AS_CONSERVE,              &
        & GMAPFILENAME_SA_CONSERVE,              &
-       & AS_COUPLING_CYCLE_SEC
+       & AS_COUPLING_CYCLE_SEC,                 &
+       & SO_COUPLING_CYCLE_SEC
+       
 
   use mpi
   
@@ -235,11 +237,9 @@ contains
 
        my_comp%DelTime = TimeSecA - TimeSecN
 
-       write(*,*) "atm: set time, TimeSecN=", TimeSecN                     
        call jcup_set_time( my_comp%name,                  & ! (in)
             & my_comp%InitTimeInfo, int(my_comp%DelTime) )  ! (in)
 
-       write(*,*) "atm: get and write data , TimeSecN=", TimeSecN              
        call get_and_write_data( TimeSecN )
 
        if (my_comp%PRC_rank==0 .and. mod(my_comp%tstep, MONITOR_STEPINT) == 0) then
@@ -251,27 +251,22 @@ contains
 
        !------------------------------------------------------
 
-       write(*,*) "atm: advance timestep , TimeSecN=", TimeSecN                     
        call agcm_advance_timestep( my_comp%tstep,  & ! (in)
             & my_comp%loop_end_flag,               & ! (inout)
-!!$            & skip_flag = .true.                  & ! (in)
             & skip_flag = .false.                  & ! (in)
             & )
        
        !------------------------------------------------------
 !!$       write(*,*) "-> COUPLER Put: atm my_rank=", my_comp%PRC_rank
-       
+        
        call set_and_put_data( TimeSecN ) ! (in)
        call jcup_inc_calendar( my_comp%InitTimeInfo, int(my_comp%DelTime) ) ! (in)
        my_comp%tstep = my_comp%tstep + 1       
 
-!!$       write(*,*) "<--- atm: TimeLoop, TimeSecN=", TimeSecN       
-       stop
-       
-       if ( EndTimeSec < TimeSecN ) then
+       if (EndTimeSec <=  TimeSecN ) then
           my_comp%loop_end_flag = .true.
        end if
-       
+!!$       if(my_comp%PRC_rank==0)  write(*,*) "<-- atm: TimeLoopEnd"       
     end do
     loop_flag = .false.
     
@@ -286,13 +281,19 @@ contains
     use jcup_interface, only: &
          & jcup_coupling_end
 
+    use mpi
+    
+    integer :: ierr
+    
     ! 実行文; Executable statement
     !
-
+    
     call jcup_coupling_end(my_comp%InitTimeInfo, .false.)
 
     !------------------------
     call MessageNotify( 'M', module_name, "Shutdown atmospheric model..")
+
+    call MPI_Barrier(MPI_COMM_WORLD, ierr)  
     call agcm_shutdown()
     !-------------------------
     
@@ -413,38 +414,49 @@ contains
     call jcup_def_varp( field%varp(a2s_SfcAirTemp_id)%varp_ptr, my_comp%name, a2s_SfcAirTemp, ATM_GRID_2D )
     call jcup_def_varp( field%varp(a2s_SfcPress_id)%varp_ptr, my_comp%name, a2s_SfcPress, ATM_GRID_2D )
     call jcup_def_varp( field%varp(a2s_QVap1_id)%varp_ptr, my_comp%name, a2s_QVap1, ATM_GRID_2D )
-    call jcup_def_varp( field%varp(a2s_Press1_id)%varp_ptr, my_comp%name, a2s_Press1, ATM_GRID_2D )
     call jcup_def_varp( field%varp(a2s_LDwRFlx_id)%varp_ptr, my_comp%name, a2s_LDwRFlx, ATM_GRID_2D ) 
     call jcup_def_varp( field%varp(a2s_SDwRFlx_id)%varp_ptr, my_comp%name, a2s_SDwRFlx, ATM_GRID_2D )
     call jcup_def_varp( field%varp(a2s_RainFall_id)%varp_ptr, my_comp%name, a2s_RainFall, ATM_GRID_2D )
     call jcup_def_varp( field%varp(a2s_SnowFall_id)%varp_ptr, my_comp%name, a2s_SnowFall, ATM_GRID_2D )
+    call jcup_def_varp( field%varp(a2s_ImplCPLCoef1_id)%varp_ptr, my_comp%name, a2s_ImplCPLCoef1, ATM_GRID_2D, 4 )
+    call jcup_def_varp( field%varp(a2s_ImplCPLCoef2_id)%varp_ptr, my_comp%name, a2s_ImplCPLCoef2, ATM_GRID_2D, 4 )
         
     !- Variable getten from  other components
 
-    call regist_jcup_var_sa( s2a_WindStressX_id, s2a_WindStressX, 1 )
-    call regist_jcup_var_sa( s2a_WindStressY_id, s2a_WindStressY, 1 )
-    call regist_jcup_var_sa( s2a_LUwRFlx_id, s2a_LUwRFlx, 2 )
-    call regist_jcup_var_sa( s2a_SUwRFlx_id, s2a_SUwRFlx, 2 )
-    call regist_jcup_var_sa( s2a_SenHFlx_id, s2a_SenHFlx, 2 )
-    call regist_jcup_var_sa( s2a_QVapMFlx_id, s2a_QVapMFlx, 2 )
-    call regist_jcup_var_sa( s2a_SfcAlbedo_id, s2a_SfcAlbedo, 3  )
-    call regist_jcup_var_sa( s2a_SfcRadTemp_id, s2a_SfcRadTemp, 3 )
+!!$    call regist_jcup_var_sa( s2a_WindStressX_id, s2a_WindStressX, 1, GMAPTAG_ATM2D_SFC2D_CONSERVE )
+!!$    call regist_jcup_var_sa( s2a_WindStressY_id, s2a_WindStressY, 1, GMAPTAG_ATM2D_SFC2D_CONSERVE )
+    call regist_jcup_var_sa( s2a_LUwRFlx_id, s2a_LUwRFlx, 2, GMAPTAG_ATM2D_SFC2D_CONSERVE )
+    call regist_jcup_var_sa( s2a_SUwRFlx_id, s2a_SUwRFlx, 2, GMAPTAG_ATM2D_SFC2D_CONSERVE )
+    call regist_jcup_var_sa( s2a_SenHFlx_id, s2a_SenHFlx, 2, GMAPTAG_ATM2D_SFC2D_CONSERVE )
+    call regist_jcup_var_sa( s2a_QVapMFlx_id, s2a_QVapMFlx, 2, GMAPTAG_ATM2D_SFC2D_CONSERVE )
+    call regist_jcup_var_sa( s2a_SfcAlbedo_id, s2a_SfcAlbedo, 3, GMAPTAG_ATM2D_SFC2D  )
+!!$    call regist_jcup_var_sa( s2a_SfcRadTemp_id, s2a_SfcRadTemp, 3, GMAPTAG_ATM2D_SFC2D_CONSERVE )
+    call regist_jcup_var_sa( s2a_DelVarImplCPL_id, s2a_DelVarImplCPL, 4, GMAPTAG_ATM2D_SFC2D, 4 )
     
     !- Finish defining variables for jup ---------------------
     
     call jcup_end_var_def()
 
   contains
-    subroutine regist_jcup_var_sa(varid, varname, exchange_tag)
+    subroutine regist_jcup_var_sa(varid, varname, exchange_tag, mapping_tag, NumGN25)
       integer, intent(in) :: varid
       character(*), intent(in) :: varname
       integer, intent(in) :: exchange_tag
+      integer, intent(in) :: mapping_tag
+      integer, intent(in), optional :: NumGN25
 
-      call jcup_def_varg( field%varg(varid)%varg_ptr, my_comp%name, varname, ATM_GRID_2D, 1,                      & ! (in)
-           & SEND_MODEL_NAME=sfc_comp%name, SEND_DATA_NAME=varname, RECV_MODE='SNP',                              & ! (in)
-           & INTERVAL=AS_COUPLING_CYCLE_SEC, TIME_LAG=+1, MAPPING_TAG=GMAPTAG_ATM2D_SFC2D_CONSERVE,               &
+      integer :: NumGN25_
+
+      NumGN25_ = 1
+      if (present(NumGN25)) NumGN25_ = NumGN25
+      
+      call jcup_def_varg( field%varg(varid)%varg_ptr, my_comp%name, varname, ATM_GRID_2D, NumGN25_,           & ! (in)
+           & SEND_MODEL_NAME=sfc_comp%name, SEND_DATA_NAME=varname, RECV_MODE='SNP',                          & ! (in)
+           & INTERVAL=AS_COUPLING_CYCLE_SEC, TIME_LAG=+1, MAPPING_TAG=mapping_tag, &
            & EXCHANGE_TAG=exchange_tag )   ! (in)
+      
     end subroutine regist_jcup_var_sa
+
     
   end subroutine init_jcup_var
 
@@ -646,8 +658,9 @@ contains
          & xy_RainAtm => xy_Rain, xy_SnowAtm => xy_Snow, &
          & xyra_DelRadLUwFlux, xyra_DelRadLDwFlux, xy_SurfTemp
     use dcpam_main_mod, only: &
-         & xyz_UN, xyz_VN, xyz_TempN, xyzf_QMixN, &
-         & xy_PsN, xyz_Press, xy_SurfVelTransCoef
+         & xyz_UB, xyz_VB, xyz_TempB, xyzf_QMixB, &
+         & xy_PsB, xyz_Press,                          &
+         & dcpam_Prepair_ImplcitCoupling
     
     use composition, only: &
          & IndexH2OVap
@@ -675,32 +688,34 @@ contains
     integer :: p, j, m, n
     real(DP) :: Tmpavg, SurfArea
     integer :: ierr
-
+    real(DP) :: xya_ImplCplCoef1(0:imax-1,1:jmax,4)
+    real(DP) :: xya_ImplCplCoef2(0:imax-1,1:jmax,4)
     
     ! 実行文; Executable statement
     !
+
+    call dcpam_Prepair_ImplcitCoupling( &
+         & xy_PsB, xyz_UB, xyz_VB, xyz_TempB, xyzf_QMixB, &
+         & xya_ImplCplCoef1, xya_ImplCplCoef2 )
     
-    call atm_set_send_2d( a2s_WindU_id, xyz_UN(:,:,1) )
-    call atm_set_send_2d( a2s_WindV_id, xyz_VN(:,:,1) )
-    call atm_set_send_2d( a2s_SfcAirTemp_id, xyz_TempN(:,:,1) )
-    call atm_set_send_2d( a2s_SfcPress_id, xy_PsN )
-    call atm_set_send_2d( a2s_QVap1_id, xyzf_QMixN(:,:,1,IndexH2OVap) )
-    call atm_set_send_2d( a2s_Press1_id, xyz_Press(:,:,1) )
+    call atm_set_send_2d( a2s_WindU_id, xyz_UB(:,:,1) )
+    call atm_set_send_2d( a2s_WindV_id, xyz_VB(:,:,1) )
+    call atm_set_send_2d( a2s_SfcAirTemp_id, xyz_TempB(:,:,1) )
+    call atm_set_send_2d( a2s_SfcPress_id, xy_PsB )
+    call atm_set_send_2d( a2s_QVap1_id, xyzf_QMixB(:,:,1,IndexH2OVap) )
+!!$    call atm_set_send_2d( a2s_Press1_id, xyz_Press(:,:,1) )
     call atm_set_send_2d( a2s_LDwRFlx_id, xy_LDWRFlxAtm )    
     call atm_set_send_2d( a2s_SDwRFlx_id, xy_SDWRFlxAtm )
     call atm_set_send_2d( a2s_RainFall_id, xy_RainAtm )
     call atm_set_send_2d( a2s_SnowFall_id, xy_SnowAtm )
-
-
-!!$
+    call atm_set_send_25d( a2s_ImplCPLCoef1_id, xya_ImplCplCoef1 )
+    call atm_set_send_25d( a2s_ImplCPLCoef2_id, xya_ImplCplCoef2 )
+    
 !!$    TmpAvgGlobal = IntLonLat_xy(xy_RainAtm + xy_SnowAtm - xy_LatentAtm/LatentHeat)/(4d0*PI)
 !!$    call HistoryAutoPut( TimeSecA, 'OutputWtMass', TmpAvgGlobal)
 !!$    if(my_comp%PRC_rank==0) then
 !!$       TmpAvgGlobalSave = TmpAvgGlobalSave + TmpAvgGlobal
-    write(*,*) my_comp%PRC_rank, "SenHFlx:", sum(xy_SensAtm(:,:),1)/64d0
-    write(*,*) my_comp%PRC_rank, "TauX:", sum(xy_TauXAtm(:,:),1)/64d0
 !!$       write(*,*) my_comp%PRC_rank, "SurfVelTransA:", sum(xy_SurfVelTransCoef(:,:),1)/64d0
-
 !!$    end if
 
   contains
@@ -710,6 +725,18 @@ contains
       
       call jcup_put_data(field%varp(varpID)%varp_ptr, pack(send_data, maSK=field%mask2d))
     end subroutine atm_set_send_2d
+
+    subroutine atm_set_send_25d(varpID, send_data)
+      integer, intent(in) :: varpID
+      real(DP), intent(in) :: send_data(:,:,:)
+
+      integer :: k
+
+      do k=1 ,size(send_data,3)
+         field%buffer25d(:,k) = pack(send_data(:,:,k), mask=field%mask2d)
+      end do
+      call jcup_put_data(field%varp(varpID)%varp_ptr, field%buffer25d)
+    end subroutine atm_set_send_25d
     
 !!$    subroutine atm_set_send(varpID, code)
 !!$      integer, intent(in) :: varpID, code
@@ -728,7 +755,7 @@ contains
 
     use gridset, only: &
          & iMax, jMax
-
+ 
     use axesset,only: &
          & y_Lat
 
@@ -749,6 +776,17 @@ contains
     use dcpam_main_mod, only: &
          & xy_TauXAtm, xy_TauYAtm, xy_SensAtm, xy_LatentAtm, &
          & xy_LDWRFlxAtm, xy_LUWRFlxAtm, xy_SDWRFlxAtm, xy_SUWRFlxAtm
+
+    use dcpam_main_mod, only: &
+         & xy_SurfMomFluxX, xy_SurfMomFluxY, &
+         & xy_SurfHeatFlux, xyf_SurfQMixFlux, xy_SurfH2OVapFluxA, xy_SurfLatentHeatFluxA, &
+         & xyz_DUDt, xyz_DVDt, xyz_DTempDtVDiff, xyzf_DQMixDt
+
+    use composition, only: &
+         & IndexH2OVap
+
+    use constants0, only: &
+         & StB
     
     ! 宣言文; Declareration statements
     !            
@@ -761,10 +799,11 @@ contains
     real(DP) :: xy_SfcAlbedo(0:iMax-1,jMax)
     real(DP) :: xy_SfcSnow(0:iMax-1,jMax)
     real(DP) :: xy_SfcEngyFlxMod(0:iMax-1,jMax)
-    real(DP) :: xy_QVapMFlxAtm(0:imax-1,jMax)
     real(DP) :: TmpAvg
     real(DP) :: xy_LUwRFlx(0:imax-1,jmax)
     real(DP) :: xy_SUwRFlx(0:imax-1,jmax)
+    real(DP) :: xy_SfcRadTemp4(0:imax-1,jmax)
+    real(DP) :: xya_DelVarImplCPL(0:imax-1,jmax,4)
     
     ! 実行文; Executable statement
     !
@@ -773,23 +812,33 @@ contains
     ! Get oceanic surface temerature send by OGCM.
     !
 
-    call atm_get_write( s2a_WindStressX_id, s2a_WindStressX, xy_TauXAtm )
-    call atm_get_write( s2a_WindStressY_id, s2a_WindStressY, xy_TauYAtm )
-    call atm_get_write( s2a_LUwRFlx_id, s2a_LUwRFlx, xy_LUwRFlx )
-    call atm_get_write( s2a_SUwRFlx_id, s2a_SUwRFlx, xy_SUwRFlx )
-    call atm_get_write( s2a_SenHFlx_id, s2a_SenHFlx, xy_SensAtm )
-    call atm_get_write( s2a_QVapMFlx_id, s2a_QVapMFlx, xy_QVapMFlxAtm )
-    call atm_get_write( s2a_SfcAlbedo_id, s2a_SfcAlbedo, xy_SfcAlbedo )
-    call atm_get_write( s2a_SfcRadTemp_id, s2a_SfcRadTemp, xy_SfcTemp )
-    
     !
     !
     if( mod(CurrentTimeSec, dble(AS_COUPLING_CYCLE_SEC)) == 0d0 ) then
+    
+       xyf_SurfQMixFlux(:,:,:) = 0d0
 
-!!$    if(my_rank>12) then
-!!$       write(*,*) "atm: rank=", my_rank, "SurfTemp=", xy_SurfTemp(0,1:2), "lat=", y_Lat(1:2)/acos(-1d0)*180d0
-!!$    end if
-
+!!$       call atm_get_write( s2a_WindStressX_id, s2a_WindStressX, xy_SurfMomFluxX )
+!!$       call atm_get_write( s2a_WindStressY_id, s2a_WindStressY, xy_SurfMomFluxY )
+       call atm_get_write( s2a_LUwRFlx_id, s2a_LUwRFlx, xy_LUwRFlx )
+       call atm_get_write( s2a_SUwRFlx_id, s2a_SUwRFlx, xy_SUwRFlx )
+       call atm_get_write( s2a_SenHFlx_id, s2a_SenHFlx, xy_SurfHeatFlux )
+       call atm_get_write( s2a_QVapMFlx_id, s2a_QVapMFlx, xy_SurfH2OVapFluxA )
+       call atm_get_write( s2a_SfcAlbedo_id, s2a_SfcAlbedo, xy_SfcAlbedo  )
+!!$       call atm_get_write( s2a_SfcRadTemp_id, s2a_SfcRadTemp, xy_SfcRadTemp4 )
+       call atm_get_write_25d( s2a_DelVarImplCPL_id, s2a_DelVarImplCPL, xya_DelVarImplCPL, 4 )
+       
+       xy_SfcTemp(:,:) = (xy_LUwRFlx/StB)**0.25d0
+       xyz_DUDt(:,:,1) = xya_DelVarImplCPL(:,:,1)
+       xyz_DVDt(:,:,1) = xya_DelVarImplCPL(:,:,2)
+       xyz_DTempDtVDiff(:,:,1) = xya_DelVarImplCPL(:,:,3)
+       xyzf_DQMixDt(:,:,1,IndexH2OVap) = xya_DelVarImplCPL(:,:,4)
+       xyf_SurfQMixFlux(:,:,IndexH2OVap) = xy_SurfH2OVapFluxA
+       
+      if( mod(CurrentTimeSec, dble(AS_COUPLING_CYCLE_SEC)) == 0d0 ) then
+         call output_var( CurrentTimeSec, "o2d_SfcAlbedo", xy_SfcAlbedo )
+         call output_var( CurrentTimeSec, "o2d_SfcTemp", xy_SfcTemp )
+      end if       
        if(my_comp%PRC_rank==0) then
 !!$          write(*,*) "Atm: FreshWtFlxSAvg=", TmpAvgGlobalSave/6d0
        end if
@@ -797,9 +846,9 @@ contains
        
 !!$       write(*,*) "Check the unit of SfcSnow.."
        call agcm_update_surfprop( &
-            & xy_SurfTempRecv=xy_SfcTemp, xy_SurfAlbedoRecv=xy_SfcAlbedo,            & ! (in)
-            & xy_SurfSnowRecv=1d3*xy_SfcSnow,                                        & ! (in)
-            & xy_SfcEngyFlxModRecv=xy_SfcEngyFlxMod*AS_COUPLING_CYCLE_SEC            & ! (in)
+            & xy_SurfTempRecv=xy_SfcTemp, xy_SurfAlbedoRecv=xy_SfcAlbedo                & ! (in)
+!!$            & xy_SurfSnowRecv=1d3*xy_SfcSnow,                                        & ! (in)
+!!$            & xy_SfcEngyFlxModRecv=xy_SfcEngyFlxMod*AS_COUPLING_CYCLE_SEC            & ! (in)
             & )
     end if
     
@@ -808,7 +857,6 @@ contains
       integer, intent(in) :: vargID
       character(*), intent(In) :: vargname
       real(DP), intent(inout) :: xy_getdata(:,:)
-
       
       field%buffer1d(:) = 0d0
       call jcup_get_data(field%varg(vargID)%varg_ptr, field%buffer1d)
@@ -816,10 +864,29 @@ contains
       field%recv_2d(:,:) = unpack(field%buffer1d, field%mask2d, field%recv_2d)      
       if( mod(CurrentTimeSec, dble(AS_COUPLING_CYCLE_SEC)) == 0d0 ) then
          xy_getdata(:,:) = field%recv_2d
-!!$         call output_var( CurrentTimeSec, vargName, xy_getdata )
       end if
     end subroutine atm_get_write
+
+    subroutine atm_get_write_25d(vargID, vargName, xya_getdata, NumGN25)
+      integer, intent(in) :: vargID
+      character(*), intent(In) :: vargname
+      integer, intent(in) :: NumGN25
+      real(DP), intent(out) :: xya_getdata(0:imax-1,jmax,NumGN25)
       
+      integer :: k
+        
+      field%buffer25d(:,:) = 0d0
+      call jcup_get_data(field%varg(vargID)%varg_ptr, field%buffer25d)
+      
+      if( mod(CurrentTimeSec, dble(AS_COUPLING_CYCLE_SEC)) == 0d0 ) then
+         do k=1,NumGN25
+            field%recv_25d(:,:,k) = unpack(field%buffer25d(:,k), field%mask2d, field%recv_25d(:,:,k))              
+            xya_getdata(:,:,k) = field%recv_25d(:,:,k)
+         end do
+      end if
+      
+    end subroutine atm_get_write_25d
+    
   end subroutine get_and_write_data
 
   !-----------------------------------------------------------------------------
@@ -842,16 +909,16 @@ contains
     !
     
     dims_XYT = (/ 'lon ', 'lat ', 'time'  /)
-    call HistoryAutoAddVariable( s2a_WindStressX,  &
-         & dims=dims_XYT, longname='momentum flux (X)', units='N/m2') 
-
-    call HistoryAutoAddVariable( s2a_WindStressY,  &
-         & dims=dims_XYT, longname='momentum flux (Y)', units='N/m2') 
+!!$    call HistoryAutoAddVariable( s2a_WindStressX,  &
+!!$         & dims=dims_XYT, longname='momentum flux (X)', units='N/m2') 
+!!$
+!!$    call HistoryAutoAddVariable( s2a_WindStressY,  &
+!!$         & dims=dims_XYT, longname='momentum flux (Y)', units='N/m2') 
     
-    call HistoryAutoAddVariable( s2a_SfcRadTemp,  &
+    call HistoryAutoAddVariable( "o2d_SfcTemp", & !s2a_SfcRadTemp,  &
          & dims=dims_XYT, longname='surface temperature calculated ocean and sea-ice model', units='K') 
 
-    call HistoryAutoAddVariable( s2a_SfcAlbedo, &
+    call HistoryAutoAddVariable( "o2d_SfcAlbedo", & !s2a_SfcAlbedo, &
          & dims=dims_XYT, longname='surface albedo calculated by ocean and sea-ice model', units='1') 
 
 !!$    call HistoryAutoAddVariable( o2d_SfcSnow, &

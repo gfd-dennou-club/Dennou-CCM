@@ -12,9 +12,7 @@ program main
     call atm_run(loop_flag)
   end do
 
-  call MPI_Barrier(MPI_COMM_WORLD, ierr)  
   call atm_fin()
-
-  stop
+!!$  stop
 
 end program main
