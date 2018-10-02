@@ -107,8 +107,10 @@ end
 
 def u_ptemp_fig(u_, ptemp_, itr)
   p "u_ptemp_fig: itr=#{itr}"
-  prep_dcl(1,1,15)
+  prep_dcl(1,1,40)
 
+  u_min = -0.8; u_max = 0.3; u_int = 0.025
+  
   case  ClimateState
   when CLIMATE_SNOWBALL then
     temp_min = 271; temp_max = 280; temp_int = 0.25
@@ -119,12 +121,12 @@ def u_ptemp_fig(u_, ptemp_, itr)
   when CLIMATE_WARM then
     temp_min = 271; temp_max = 313; temp_int = 2
   when CLIMATE_RUNAWAY
-    temp_min = 280; temp_max = 330; temp_int = 2.5
+    temp_min = 280; temp_max = 360; temp_int = 5
+    u_min = -1.0; u_max = 1.0; u_int = 0.05    
   else
     temp_min = 271; temp_max = 304; temp_int = 1
   end
   
-  u_min = -0.8; u_max = 0.3; u_int = 0.025
 
 
   fig_z_grid, ry1, ry2, cy = sig_to_figZgrid(u_.grid,itr)  
@@ -132,12 +134,13 @@ def u_ptemp_fig(u_, ptemp_, itr)
   ptemp = GPhys.new(fig_z_grid, ptemp_.data)
   
   label = "U, " + DCL::csgi(135)
-  GGraph.next_axes('yside'=>'r')
+  GGraph.next_axes('yside'=>'u')
   GGraph.tone( ptemp, true, "titl"=>label, "int"=>temp_int, "min"=>temp_min, "max"=>temp_max )
   GGraph.contour( u, false, "titl"=>label, "int"=>u_int, "min"=>u_min, "max"=>u_max )
-  GGraph.color_bar("charfact"=>0.75, "vlength"=>0.25)
   DCL::uyaxlb('L', ry1, ry2, cy, 4)
+  DCL::uyaxlb('R', ry1, ry2, cy, 4)
   DCL::uysttl('L', 'depth (km)', 0.0)
+  GGraph.color_bar("charfact"=>0.75, "vlength"=>0.5)
 
   DCL.grcls
   
@@ -177,6 +180,8 @@ def msf_salt_fig(msf_, salt_, itr)
     salt_levels = [33.0].concat( gen_levels(33.5, 37.25, 0.25).concat([37.5,38.0,39.0,40.0]) )
     msf_min = -50; msf_max = 50; msf_int = 5
   when CLIMATE_RUNAWAY
+    salt_levels = [20.0,30.0,33.0].concat( gen_levels(33.5, 37.25, 0.25).concat([37.5,38.0,39.0]) )
+    msf_min = -50; msf_max = 50; msf_int = 5
   else
     salt_levels = [33.0].concat( gen_levels(33.4, 36.8, 0.2).concat([37.2, 38.0]) )
     msf_min = -50; msf_max = 50; msf_int = 5
@@ -189,12 +194,13 @@ def msf_salt_fig(msf_, salt_, itr)
   salt = GPhys.new(fig_z_grid, salt_.data)  
   msf = GPhys.new(fig_z_grid, msf_.interpolate(sig_pos).data)
 
-  GGraph.next_axes('yside'=>'r')  
+  GGraph.next_axes('yside'=>'u')  
   GGraph.tone( salt, true, "titl"=>"MSF, Salt", "levels"=>salt_levels)
   GGraph.contour( msf, false, "titl"=>"MSF, Salt", "int"=>msf_int, "min"=>msf_min, "max"=>msf_max )
-  GGraph.color_bar("charfact"=>0.75, "vlength"=>0.25)
   DCL::uyaxlb('L', ry1, ry2, cy, 4)
+  DCL::uyaxlb('R', ry1, ry2, cy, 4)
   DCL::uysttl('L', 'depth (km)', 0.0)
+  GGraph.color_bar("charfact"=>0.75, "vlength"=>0.5)
   DCL.grcls
 
   rename_pngfile("MSF-Salt_xtmean_itr#{itr.to_i}") if FlagOutputIMG
@@ -226,12 +232,13 @@ def stratification_fig(densPot_, bvFreq_, itr=1)
   bvFreq = GPhys.new(fig_z_grid, bvFreq_.data)
   densPot = GPhys.new(fig_z_grid, densPot_.data) 
 
-  GGraph.next_axes('yside'=>'r')  
+  GGraph.next_axes('yside'=>'u')  
   GGraph.tone( bvFreq, true, "titl"=>"DensPot, BvFreq", "levels"=>bvFreq_levels )#"int"=>bvFreq_int, "min"=>bvFreq_min, "max"=>bvFreq_max )
   GGraph.contour( densPot, false, "titl"=>"DensPot, BvFreq", "int"=>densPot_int, "min"=>densPot_min, "max"=>densPot_max )
-  GGraph.color_bar("charfact"=>0.75, "vlength"=>0.25, "constwidth"=>true, "chval_fmt"=>"B")
   DCL::uyaxlb('L', ry1, ry2, cy, 4)
+  DCL::uyaxlb('R', ry1, ry2, cy, 4)
   DCL::uysttl('L', 'depth (km)', 0.0)
+  GGraph.color_bar("charfact"=>0.75, "vlength"=>0.5, "constwidth"=>true, "chval_fmt"=>"B")
   DCL.grcls
 
   rename_pngfile("DensPot-BvFreq_xtmean_itr#{itr.to_i}") if FlagOutputIMG
@@ -248,11 +255,11 @@ def meridional_heat_flux_fig(totHT, eulerHT, isoDiffHT, bolusHT, itr=1)
   when CLIMATE_PARTICE_COLD, CLIMATE_PARTICE_LARGE then
     htflx_min = -2.0; htflx_max = 2.0    
   when CLIMATE_WARM then
-    htflx_min = -5.0; htflx_max = 5.0
+    htflx_min = -4.0; htflx_max = 4.0
   when CLIMATE_RUNAWAY
     htflx_min = -20.0; htflx_max = 20.0    
   else
-    htflx_min = -3.0; htflx_max = 3.0
+    htflx_min = -2.0; htflx_max = 2.0
   end
 
   GGraph.set_axes("ytitle"=>"meridional heat flux", "yunits"=>"PW")

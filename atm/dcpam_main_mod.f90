@@ -27,7 +27,13 @@ module dcpam_main_mod
   ! 力学過程 (スペクトル法, Arakawa and Suarez (1983))
   ! Dynamical process (Spectral method, Arakawa and Suarez (1983))
   !
-  use dynamics_hspl_vas83, only: DynamicsHsplVAS83, VerticalFilterAdjust, SurfPresChangeWithWtVap
+#define DYN_FAST
+#ifndef DYN_FAST  
+  use dynamics_hspl_vas83, only: &
+#else
+  use dynamics_hspl_vas83_fast, only: &
+#endif
+       & DynamicsHsplVAS83, VerticalFilterAdjust, SurfPresChangeWithWtVap
 
   ! 物理過程のみの計算のための力学過程
   ! A dynamics for calculation with physical processes only
@@ -392,7 +398,8 @@ module dcpam_main_mod
   use output_freq_used_vars, only : OutputFreqUsedVars
 
   use ProfUtil_mod
-
+  use dcpam_sfc_implicit_coupling_mod
+  
   ! 宣言文 ; Declaration statements
   !
   implicit none
@@ -402,6 +409,7 @@ module dcpam_main_mod
   public :: MainInit, MainTerminate
   public :: dcpam_advance_timestep
   public :: dcpam_UpdateSurfaceProperties
+  public :: dcpam_Prepair_ImplcitCoupling
   
   character(*), parameter:: prog_name = 'dcpam_main'
                             ! 主プログラム名. 
@@ -829,6 +837,7 @@ module dcpam_main_mod
   integer, parameter:: IDPhyTendMethodImp1LayModel = 10
   integer, parameter:: IDPhyTendMethodImpSoilModel = 11
   integer, parameter:: IDPhyTendMethodImpAtmOnly   = 12
+  integer, parameter:: IDPhyTendMethodImpCPLModel  = 13
 
   integer           :: IDRadMethod               ! 放射過程の計算方法
                                                  ! Method for radiation
@@ -848,6 +857,7 @@ module dcpam_main_mod
   !
   integer, parameter:: IDSfcFluxMethodL82     = 90
   integer, parameter:: IDSfcFluxMethodBH91B94 = 91
+  integer, parameter:: IDSfcFluxMethodCPLMode = 92
 
 
   integer           :: IDVDiffMethod            ! 
@@ -943,6 +953,52 @@ contains
   
   !------------------------------------------------------------------
 
+  subroutine dcpam_Prepair_ImplcitCoupling( &
+       & xy_Ps, xyz_U, xyz_V, xyz_Temp, xyzf_QMix, &
+       & xya_ImplCplCoef1, xya_ImplCplCoef2 )
+ 
+    use dcpam_sfc_implicit_coupling_mod, only: SfcImplicitCoupling_VDiffForward         
+
+    implicit none
+    
+    real(DP), intent(in) :: xy_Ps(0:imax-1,1:jmax)
+    real(DP), intent(in) :: xyz_U(0:imax-1,1:jmax,1:kmax)
+    real(DP), intent(in) :: xyz_V(0:imax-1,1:jmax,1:kmax)
+    real(DP), intent(in) :: xyz_Temp(0:imax-1,1:jmax,1:kmax)
+    real(DP), intent(in) :: xyzf_QMix(0:imax-1,1:jmax,1:kmax,1:ncmax)
+    real(DP), intent(out) :: xya_ImplCplCoef1(0:imax-1,1:jmax,4)
+    real(DP), intent(out) :: xya_ImplCplCoef2(0:imax-1,1:jmax,4)
+
+    call AuxVars( &
+         & xy_Ps, xyz_Temp, xyzf_QMix(:,:,:,IndexH2OVap),    & ! (in )
+         & xyr_Temp, xyz_VirTemp, xyr_VirTemp, xy_SurfVirTemp,  & ! (out) optional
+         & xyr_Press     = xyr_Press,                           & ! (out) optional
+         & xyz_Press     = xyz_Press,                           & ! (out) optional
+         & xy_SurfHeight = xy_SurfHeight, xy_SurfTemp = xy_SurfTemp, & ! (in ) optional
+         & xyz_Height    = xyz_Height, xyr_Height = xyr_Height, & ! (out) optional
+         & xyz_Exner     = xyz_Exner,  xyr_Exner  = xyr_Exner   & ! (out) optional
+         & )
+
+    call VDiffusion(                                              &
+         & xyz_U,     xyz_V,     xyzf_QMix,                       & ! (in)
+         & xyz_Temp, xyr_Temp, xyz_VirTemp, xyr_VirTemp, xyr_Press, & ! (in)
+         & xy_SurfHeight,                                            & ! (in)
+         & xyz_Height, xyr_Height, xyz_Exner,    xyr_Exner,          & ! (in)
+         & xyr_MomFluxX, xyr_MomFluxY, xyr_HeatFlux, xyrf_QMixFlux,  & ! (out)
+         & xyr_VelDiffCoef, xyr_TempDiffCoef, xyr_QMixDiffCoef       & ! (out)
+         & )
+
+    call SfcImplicitCoupling_VDiffForward( &
+         & xyr_MomFluxX, xyr_MomFluxY, xyr_HeatFlux, xyrf_QMixFlux, & ! (in)
+         & xyr_Press, xyz_Exner, xyr_Exner,                         & ! (in)
+         & xyr_VirTemp, xyz_Height,                                 & ! (in)
+         & xyr_VelDiffCoef, xyr_TempDiffCoef, xyr_QMixDiffCoef,     & ! (in)
+         & xyz_DUDt, xyz_DVDt, xyz_DTempDtVDiff, xyzf_DQMixDt,      & ! (out)
+         & xya_ImplCplCoef1, xya_ImplCplCoef2                       & ! (out)
+         & )
+     
+  end subroutine dcpam_Prepair_ImplcitCoupling
+  
   ! Interface for coupler to update variables of surface properties in DCPAM.
   subroutine dcpam_UpdateSurfaceProperties( &
        & xy_SurfTempRecv, xy_SurfAlbedoRecv, xy_SeaIceConcRecv, xy_SurfSnowRecv,  &
@@ -1032,7 +1088,6 @@ contains
          &     xyzf_DQMixDt(:,:,1,IndexH2OVap) - xy_SurfDQVapSatDTemp*xy_DSurfTempDt &
          &   )* 2d0*delta_t &
          & )
-!!$    xy_LatentAtm(:,:) = xy_SurfLatentHeatFluxA
     
     xy_LDWRFlxAtm(:,:) = xyr_RadLDwFlux(:,:,0) + 2d0*delta_t*( &
          &    xy_DSurfTempDt * xyra_DelRadLDwFlux(:,:,0,0)            &
@@ -1053,7 +1108,7 @@ contains
     xy_DSurfHFlxDTs(:,:) = &
          &   CpDry*xy_SurfTempTransCoef      &
          & + xy_DSurfLatentFlxDTs            &
-         & + 0d0*xyra_DelRadLUwFlux(:,:,0,0) &
+!!$         & + xyra_DelRadLUwFlux(:,:,0,0)     &
          & - xyra_DelRadLDwFlux(:,:,0,0)
     !$omp end workshare
     !$omp end parallel
@@ -1595,128 +1650,137 @@ if (.not. skip_flag) then
 
       call ProfUtil_RapEnd('Rad', 1)
 
-      call ProfUtil_RapStart('SfcFlx', 1)      
-      ! 地表面フラックス
-      ! Surface flux
-      !
-      select case ( IDSfcFluxMethod )
-      case ( IDSfcFluxMethodL82 )
+      if ( IDPhyTendMethod /= IDPhyTendMethodImpCPLModel ) then
+      
+         call ProfUtil_RapStart('SfcFlx', 1)      
+         ! 地表面フラックス
+         ! Surface flux
+         !
+         select case ( IDSfcFluxMethod )
+         case ( IDSfcFluxMethodL82 )
+            
+            call SurfaceFlux(                                                  &
+                 & 'L82',                                                         & ! (in)
+                 & xyz_UB, xyz_VB,                                                & ! (in)
+                 & xyz_TempB, xyr_Temp, xyz_VirTemp, xyr_VirTemp, xy_SurfVirTemp, & ! (in)
+                 & xyzf_QMixB,                                                    & ! (in)
+                 & xyr_Press, xy_SurfHeight, xyz_Height, xyz_Exner, xyr_Exner,   & ! (in)
+                 & xy_SurfTemp, xy_SurfHumidCoef,                                & ! (in)
+                 & xy_SurfRoughLenMom, xy_SurfRoughLenHeat,                      & ! (in)
+                 & xy_SnowFrac,                                                  & ! (in)
+                 & xy_SurfMomFluxX, xy_SurfMomFluxY, xy_SurfHeatFlux, xyf_SurfQMixFlux, & ! (out)
+                 & xy_SurfVelTransCoef, xy_SurfTempTransCoef,                    & ! (out)
+                 & xy_SurfQVapTransCoef,                                         & ! (out)
+                 & xy_SurfMOLength                                               & ! (out)
+                 & )
 
-        call SurfaceFlux(                                                  &
-          & 'L82',                                                         & ! (in)
-          & xyz_UB, xyz_VB,                                                & ! (in)
-          & xyz_TempB, xyr_Temp, xyz_VirTemp, xyr_VirTemp, xy_SurfVirTemp, & ! (in)
-          & xyzf_QMixB,                                                    & ! (in)
-          & xyr_Press, xy_SurfHeight, xyz_Height, xyz_Exner, xyr_Exner,   & ! (in)
-          & xy_SurfTemp, xy_SurfHumidCoef,                                & ! (in)
-          & xy_SurfRoughLenMom, xy_SurfRoughLenHeat,                      & ! (in)
-          & xy_SnowFrac,                                                  & ! (in)
-          & xy_SurfMomFluxX, xy_SurfMomFluxY, xy_SurfHeatFlux, xyf_SurfQMixFlux, & ! (out)
-          & xy_SurfVelTransCoef, xy_SurfTempTransCoef,                    & ! (out)
-          & xy_SurfQVapTransCoef,                                         & ! (out)
-          & xy_SurfMOLength                                               & ! (out)
-          & )
+         case ( IDSfcFluxMethodBH91B94 )
 
-      case ( IDSfcFluxMethodBH91B94 )
+            call SurfaceFlux(                                                 &
+                 & 'BH91B94',                                                    & ! (in)
+                 & xyz_UB, xyz_VB,                                               & ! (in)
+                 & xyz_TempB, xyr_Temp, xyz_VirTemp, xyr_VirTemp, xy_SurfVirTemp, & ! (in)
+                 & xyzf_QMixB,                                                    & ! (in)
+                 & xyr_Press, xy_SurfHeight, xyz_Height, xyz_Exner, xyr_Exner,   & ! (in)
+                 & xy_SurfTemp, xy_SurfHumidCoef,                                & ! (in)
+                 & xy_SurfRoughLenMom, xy_SurfRoughLenHeat,                      & ! (in)
+                 & xy_SnowFrac,                                                  & ! (in)
+                 & xy_SurfMomFluxX, xy_SurfMomFluxY, xy_SurfHeatFlux, xyf_SurfQMixFlux, & ! (out)
+                 & xy_SurfVelTransCoef, xy_SurfTempTransCoef,                    & ! (out)
+                 & xy_SurfQVapTransCoef,                                         & ! (out)
+                 & xy_SurfMOLength                                               & ! (out)
+                 & )
 
-        call SurfaceFlux(                                                 &
-          & 'BH91B94',                                                    & ! (in)
-          & xyz_UB, xyz_VB,                                               & ! (in)
-          & xyz_TempB, xyr_Temp, xyz_VirTemp, xyr_VirTemp, xy_SurfVirTemp, & ! (in)
-          & xyzf_QMixB,                                                    & ! (in)
-          & xyr_Press, xy_SurfHeight, xyz_Height, xyz_Exner, xyr_Exner,   & ! (in)
-          & xy_SurfTemp, xy_SurfHumidCoef,                                & ! (in)
-          & xy_SurfRoughLenMom, xy_SurfRoughLenHeat,                      & ! (in)
-          & xy_SnowFrac,                                                  & ! (in)
-          & xy_SurfMomFluxX, xy_SurfMomFluxY, xy_SurfHeatFlux, xyf_SurfQMixFlux, & ! (out)
-          & xy_SurfVelTransCoef, xy_SurfTempTransCoef,                    & ! (out)
-          & xy_SurfQVapTransCoef,                                         & ! (out)
-          & xy_SurfMOLength                                               & ! (out)
-          & )
+         case ( IDSfcFluxMethodCPLMode )
 
-      end select
-      !
-      ! set dust flux
-      !   This is ad hoc treatment now (yot, 2013/09/28)
-      !
+         end select
+         !
+         ! set dust flux
+         !   This is ad hoc treatment now (yot, 2013/09/28)
+         !
 !!$      if ( CompositionInqIndex('QDust') > 0 ) then
 !!$        call SetDustFlux(                                       &
 !!$          & xyf_SurfQMixFlux(:,:,CompositionInqIndex('QDust'))  & ! (out)
 !!$          & )
 !!$      end if
 
-      call ProfUtil_RapEnd('SfcFlx', 1)      
+         call ProfUtil_RapEnd('SfcFlx', 1)      
 
-      call ProfUtil_RapStart('VDiffMY', 1)      
-      ! 鉛直拡散フラックス
-      ! Vertical diffusion flux
-      !
-      select case ( IDVDiffMethod )
-      case ( IDVDiffMethodMY2 )
 
-        call VDiffusion(                                              &
-          & xyz_UB,     xyz_VB,     xyzf_QMixB,                       & ! (in)
-          & xyz_TempB, xyr_Temp, xyz_VirTemp, xyr_VirTemp, xyr_Press, & ! (in)
-          & xy_SurfHeight,                                            & ! (in)
-          & xyz_Height, xyr_Height, xyz_Exner,    xyr_Exner,          & ! (in)
-          & xyr_MomFluxX, xyr_MomFluxY, xyr_HeatFlux, xyrf_QMixFlux,  & ! (out)
-          & xyr_VelDiffCoef, xyr_TempDiffCoef, xyr_QMixDiffCoef       & ! (out)
-          & )
 
-      case ( IDVDiffMethodMY25 )
+         call ProfUtil_RapStart('VDiffMY', 1)      
+         
+         ! 鉛直拡散フラックス
+         ! Vertical diffusion flux
+         !
+         select case ( IDVDiffMethod )
+         case ( IDVDiffMethodMY2 )
 
-        if ( IndexTKE <= 0 ) then
-          call MessageNotify( 'E', prog_name, &
-            & trim(a_QMixName(IndexTKE))//' is not found.' )
-        end if
 
-        call VDiffusionMY25(                                          &
-!        call VDiffusionMY251DWrapper3D(                               &
-!        call VDiffusionMY25GBT94(                                     &
-          & xyz_UB,     xyz_VB,     xyzf_QMixB,                       & ! (in)
-          & xyz_TempB, xyr_Temp, xyz_VirTemp, xyr_VirTemp, xyr_Press, & ! (in)
-          & xy_SurfHeight,                                            & ! (in)
-          & xyz_Height, xyr_Height, xyz_Exner, xyr_Exner,             & ! (in)
-          & xyzf_QMixB(:,:,:,IndexTKE),                               & ! (in)
-          & xy_SurfMomFluxX, xy_SurfMomFluxY,                         & ! (in)
-          & xyr_MomFluxX, xyr_MomFluxY, xyr_HeatFlux, xyrf_QMixFlux,  & ! (out)
-          & xyr_VelDiffCoef, xyr_TempDiffCoef, xyr_QMixDiffCoef,      & ! (out)
-          & xyz_DTurKinEneDt                                          & ! (out)
-          & )
+            call VDiffusion(                                              &
+                 & xyz_UB,     xyz_VB,     xyzf_QMixB,                       & ! (in)
+                 & xyz_TempB, xyr_Temp, xyz_VirTemp, xyr_VirTemp, xyr_Press, & ! (in)
+                 & xy_SurfHeight,                                            & ! (in)
+                 & xyz_Height, xyr_Height, xyz_Exner,    xyr_Exner,          & ! (in)
+                 & xyr_MomFluxX, xyr_MomFluxY, xyr_HeatFlux, xyrf_QMixFlux,  & ! (out)
+                 & xyr_VelDiffCoef, xyr_TempDiffCoef, xyr_QMixDiffCoef       & ! (out)
+                 & )
 
-      case ( IDVDiffMethodJMA )
+         case ( IDVDiffMethodMY25 )
 
-        if ( IndexTKE <= 0 ) then
-          call MessageNotify( 'E', prog_name, &
-            & trim(a_QMixName(IndexTKE))//' is not found.' )
-        end if
+            if ( IndexTKE <= 0 ) then
+               call MessageNotify( 'E', prog_name, &
+                    & trim(a_QMixName(IndexTKE))//' is not found.' )
+            end if
 
-        ! JMA 乱流混合モジュール
-        ! JMA turbulent mixing module
-        !
-        call VDiffusionJMAMYWrapper3D(                          &
-          & xyz_UB,     xyz_VB,     xyzf_QMixB,                       & ! (in)
-          & xyz_TempB, xyr_Temp, xyz_VirTemp, xyr_VirTemp,            & ! (in)
-          & xyz_Press, xyr_Press,                                     & ! (in)
-          & xy_SurfHeight,                                            & ! (in)
-          & xyz_Height, xyr_Height, xyz_Exner, xyr_Exner,             & ! (in)
-          & xy_SurfMOLength,                                          & ! (in)
-          & xyzf_QMixB(:,:,:,IndexTKE),                               & ! (in)
-          & xy_SurfMomFluxX, xy_SurfMomFluxY,                         & ! (in)
-          & xy_SurfHeatFlux, xyf_SurfQMixFlux,                        & ! (in)
-          & xyr_MomFluxX, xyr_MomFluxY, xyr_HeatFlux, xyrf_QMixFlux,  & ! (out)
-          & xyr_VelDiffCoef, xyr_TempDiffCoef, xyr_QMixDiffCoef,      & ! (out)
-          & xyz_DTurKinEneDt                                          & ! (out)
-          & )
+            call VDiffusionMY25(                                          &
+                 !        call VDiffusionMY251DWrapper3D(                               &
+                 !        call VDiffusionMY25GBT94(                                     &
+                 & xyz_UB,     xyz_VB,     xyzf_QMixB,                       & ! (in)
+                 & xyz_TempB, xyr_Temp, xyz_VirTemp, xyr_VirTemp, xyr_Press, & ! (in)
+                 & xy_SurfHeight,                                            & ! (in)
+                 & xyz_Height, xyr_Height, xyz_Exner, xyr_Exner,             & ! (in)
+                 & xyzf_QMixB(:,:,:,IndexTKE),                               & ! (in)
+                 & xy_SurfMomFluxX, xy_SurfMomFluxY,                         & ! (in)
+                 & xyr_MomFluxX, xyr_MomFluxY, xyr_HeatFlux, xyrf_QMixFlux,  & ! (out)
+                 & xyr_VelDiffCoef, xyr_TempDiffCoef, xyr_QMixDiffCoef,      & ! (out)
+                 & xyz_DTurKinEneDt                                          & ! (out)
+                 & )
 
-      end select
+         case ( IDVDiffMethodJMA )
 
-      xyr_MomFluxX (:,:,0)   = xy_SurfMomFluxX
-      xyr_MomFluxY (:,:,0)   = xy_SurfMomFluxY
-      xyr_HeatFlux (:,:,0)   = xy_SurfHeatFlux
-      xyrf_QMixFlux(:,:,0,:) = xyf_SurfQMixFlux
-      call ProfUtil_RapEnd('VDiffMY', 1)
+            if ( IndexTKE <= 0 ) then
+               call MessageNotify( 'E', prog_name, &
+                    & trim(a_QMixName(IndexTKE))//' is not found.' )
+            end if
 
+            ! JMA 乱流混合モジュール
+            ! JMA turbulent mixing module
+            !
+            call VDiffusionJMAMYWrapper3D(                          &
+                 & xyz_UB,     xyz_VB,     xyzf_QMixB,                       & ! (in)
+                 & xyz_TempB, xyr_Temp, xyz_VirTemp, xyr_VirTemp,            & ! (in)
+                 & xyz_Press, xyr_Press,                                     & ! (in)
+                 & xy_SurfHeight,                                            & ! (in)
+                 & xyz_Height, xyr_Height, xyz_Exner, xyr_Exner,             & ! (in)
+                 & xy_SurfMOLength,                                          & ! (in)
+                 & xyzf_QMixB(:,:,:,IndexTKE),                               & ! (in)
+                 & xy_SurfMomFluxX, xy_SurfMomFluxY,                         & ! (in)
+                 & xy_SurfHeatFlux, xyf_SurfQMixFlux,                        & ! (in)
+                 & xyr_MomFluxX, xyr_MomFluxY, xyr_HeatFlux, xyrf_QMixFlux,  & ! (out)
+                 & xyr_VelDiffCoef, xyr_TempDiffCoef, xyr_QMixDiffCoef,      & ! (out)
+                 & xyz_DTurKinEneDt                                          & ! (out)
+                 & )
+
+         end select
+
+         xyr_MomFluxX (:,:,0)   = xy_SurfMomFluxX
+         xyr_MomFluxY (:,:,0)   = xy_SurfMomFluxY
+         xyr_HeatFlux (:,:,0)   = xy_SurfHeatFlux
+         xyrf_QMixFlux(:,:,0,:) = xyf_SurfQMixFlux
+         call ProfUtil_RapEnd('VDiffMY', 1)
+
+      end if ! end if notCPL
 
       call ProfUtil_RapStart('PhysImplSDH', 1)      
       ! 一部の物理過程の時間変化率の計算 (陰解法)
@@ -1915,7 +1979,7 @@ if (.not. skip_flag) then
           & )
 
       case ( IDPhyTendMethodImpAtmOnly )
-
+         
         call PhyImplAtmOnlyTendency(                           &
           & xyr_MomFluxX, xyr_MomFluxY, xyr_HeatFlux, xyrf_QMixFlux, & ! (in)
           & xyr_Press, xyz_Exner, xyr_Exner,                         & ! (in)
@@ -1936,7 +2000,19 @@ if (.not. skip_flag) then
         xy_SurfH2OVapFluxA     = 0.0_DP
         xy_SurfLatentHeatFluxA = 0.0_DP
 
-      end select
+     case ( IDPhyTendMethodImpCPLModel )
+
+        call SfcImplicitCoupling_VDiffBackward( &
+             & xyz_DUDt, xyz_DVDt, xyz_DTempDtVDiff, xyzf_DQMixDt  & ! (out)
+             & )
+
+        xy_DSurfTempDt       = 0.0_DP
+        xyz_DSoilTempDt      = 0.0_DP
+        xy_DPsDt             = 0.0_DP
+        xy_DSurfMajCompIceDt = 0.0_DP
+        xy_DSoilMoistDt      = 0.0_DP
+        xy_DSurfSnowDt       = 0.0_DP
+     end select
 
 
       ! Overwrite tendency of turbulent kinetic energy
@@ -3301,7 +3377,12 @@ endif ! end if for skip_flag
     ! 力学過程 (スペクトル法, Arakawa and Suarez (1983))
     ! Dynamical process (Spectral method, Arakawa and Suarez (1983))
     !
-    use dynamics_hspl_vas83, only : DynamicsHSplVAS83Init
+#ifndef DYN_FAST  
+  use dynamics_hspl_vas83, only: &
+#else
+  use dynamics_hspl_vas83_fast, only: &
+#endif
+      & DynamicsHSplVAS83Init
 
     ! 物理過程のみの計算のための力学過程
     ! A dynamics for calculation with physical processes only
@@ -3380,6 +3461,8 @@ endif ! end if for skip_flag
 
 
     use omp_wrapper, only: OMPWrapperInit
+
+    use dcpam_sfc_implicit_coupling_mod, only: dcpam_sfc_implicit_coupling_Init
     
     ! 宣言文 ; Declaration statements
     !
@@ -3664,6 +3747,8 @@ endif ! end if for skip_flag
       IDSfcFluxMethod = IDSfcFluxMethodL82
     case ( 'BH91B94' )
       IDSfcFluxMethod = IDSfcFluxMethodBH91B94
+    case ( 'L82-CPLM-Mode' )
+      IDSfcFluxMethod = IDSfcFluxMethodCPLMode
     case default
       call MessageNotify( 'E', prog_name, &
         & 'SfcFluxMethod=<%c> is not supported.', &
@@ -3709,7 +3794,10 @@ endif ! end if for skip_flag
     case ( 'AtmOnly' )
       IDPhyTendMethod = IDPhyTendMethodImpAtmOnly
       FlagPhysImpSoilModelSO = .false.
-    case default
+   case ( 'CPLM-Mode' )
+      IDPhyTendMethod = IDPhyTendMethodImpCPLModel
+      FlagPhysImpSoilModelSO = .false.
+   case default
       call MessageNotify( 'E', prog_name, &
         & 'PhysImpMode=<%c> is not supported.', &
         & c1 = trim(PhysImpMode) )
@@ -3905,6 +3993,8 @@ endif ! end if for skip_flag
         briefexplsfcflux = 'surface flux by the method of Louis et al. (1982)'
       case ( IDSfcFluxMethodBH91B94 )
         briefexplsfcflux = 'surface flux by the method of Beljaars and Holtslag (1991), Beljaars (1994)'
+     case (IDSfcFluxMethodCPLMode )
+        briefexplsfcflux = 'surface flux by the method of Louis et al. (1982) in the case of using Dennou Coupled Model)'
       case default
         call MessageNotify( 'E', 'Unexpected error in setting briefexplsfcflux', '' )
       end select
@@ -3927,6 +4017,8 @@ endif ! end if for skip_flag
         briefexplimp = 'system with thermal diffusion soil model'
       case ( IDPhyTendMethodImpAtmOnly )
         briefexplimp = 'system only with atmosphere'
+      case ( IDPhyTendMethodImpCPLModel )
+        briefexplimp = 'coupled atmosphere-ocean-sea ice system'
       case default
         call MessageNotify( 'E', 'Unexpected error in setting briefexplimp', '' )
       end select
@@ -4849,7 +4941,9 @@ endif ! end if for skip_flag
         !
         call PhyImplAtmOnlyInit
 
-      end select
+     case ( IDPhyTendMethodImpCPLModel )
+        call dcpam_sfc_implicit_coupling_Init
+     end select
 
 
       ! Gravity wave drag by McFarlane (1987)
@@ -5204,7 +5298,12 @@ endif ! end if for skip_flag
     ! 力学過程 (スペクトル法, Arakawa and Suarez (1983))
     ! Dynamical process (Spectral method, Arakawa and Suarez (1983))
     !
-    use dynamics_hspl_vas83, only : DynamicsHSplVAS83Finalize
+#ifndef DYN_FAST  
+  use dynamics_hspl_vas83, only: &
+#else
+  use dynamics_hspl_vas83_fast, only: &
+#endif
+    & DynamicsHSplVAS83Finalize
 
     !
     ! Dynamical process for TWP-ICE experiment

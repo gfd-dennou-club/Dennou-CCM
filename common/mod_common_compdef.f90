@@ -1,5 +1,5 @@
 !-------------------------------------------------------------
-! Copyright (c) 2016-2016 Kawai Yuta. All rights reserved.
+! Copyright (c) 2016-2017 Kawai Yuta. All rights reserved.
 !-------------------------------------------------------------
 !> @brief a template module
 !! 
@@ -70,24 +70,35 @@ module mod_common_compdef
 
   end type ComponentDef
   
-  type(ComponentDef), public :: CompDef_atm
-  type(ComponentDef), public :: CompDef_ocn
-  type(ComponentDef), public :: CompDef_sice
-  type(ComponentDef), public :: CompDef_land
+  type(ComponentDef), public, target :: CompDef_atm
+  type(ComponentDef), public, target :: CompDef_ocn
+  type(ComponentDef), public, target :: CompDef_sice
+  type(ComponentDef), public, target :: CompDef_land
+  type(ComponentDef), public, target :: CompDef_sfc
   type(ComponentDef), public, pointer :: CompDef_own => null()
   
   character(STRING), public :: GMAPFILENAME_AO
   character(STRING), public :: GMAPFILENAME_AO_CONSERVE
   character(STRING), public :: GMAPFILENAME_OA
   character(STRING), public :: GMAPFILENAME_OA_CONSERVE
+  
   character(STRING), public :: GMAPFILENAME_AS
   character(STRING), public :: GMAPFILENAME_AS_CONSERVE
   character(STRING), public :: GMAPFILENAME_SA
   character(STRING), public :: GMAPFILENAME_SA_CONSERVE
+
+  character(STRING), public :: GMAPFILENAME_OS
+  character(STRING), public :: GMAPFILENAME_OS_CONSERVE
+  character(STRING), public :: GMAPFILENAME_SO
+  character(STRING), public :: GMAPFILENAME_SO_CONSERVE
     
   integer, public :: AO_COUPLING_CYCLE_SEC
 !  integer, public :: OA_COUPLING_CYCLE_SEC
+  integer, public :: AS_COUPLING_CYCLE_SEC
   integer, public :: SO_COUPLING_CYCLE_SEC
+
+  integer, public :: SFC_GNX
+  integer, public :: SFC_GNY
   
   public :: ComponentDef_Init
   public :: ComponentDef_Final
@@ -163,6 +174,8 @@ contains
     
     call broadcast_compdef( CompDef_atm, COMPNAME_ATM )
     call broadcast_compdef( CompDef_ocn, COMPNAME_OCN )
+!!$    call broadcast_compdef( CompDef_sfc, COMPNAME_SFC )
+
 !!$    call broadcast_compdef( sice_comp )
 
 !!$    write(*,*) "After CompDef_Atm:", CompDef_atm%name
@@ -232,14 +245,21 @@ contains
     !    
     NAMELIST /PARAM_DCCM_COMMON/   &
          & AO_COUPLING_CYCLE_SEC,    &
+         & AS_COUPLING_CYCLE_SEC,    &
+         & SO_COUPLING_CYCLE_SEC,    &
          & GMAPFILENAME_AO,          &
          & GMAPFILENAME_OA,          &
          & GMAPFILENAME_SA,          &
          & GMAPFILENAME_AS,          &
+         & GMAPFILENAME_SO,          &
+         & GMAPFILENAME_OS,          &
          & GMAPFILENAME_AO_CONSERVE, &
          & GMAPFILENAME_OA_CONSERVE, &
          & GMAPFILENAME_AS_CONSERVE, &
-         & GMAPFILENAME_SA_CONSERVE
+         & GMAPFILENAME_SA_CONSERVE, &
+         & GMAPFILENAME_OS_CONSERVE, &
+         & GMAPFILENAME_SO_CONSERVE, &
+         & SFC_GNX, SFC_GNY
 
 
     integer :: unit_nml
@@ -252,13 +272,22 @@ contains
     GMAPFILENAME_AO = 'gmap-ATM_T42-OCN_Pl42.dat'
     GMAPFILENAME_AS = 'gmap-ATM_T42-SFC_Pl42.dat'
     GMAPFILENAME_SA = 'gmap-SFC_Pl42-ATM_T42.dat'
+    GMAPFILENAME_OS = 'gmap-OCN_Pl42-SFC_Pl42.dat'
+    GMAPFILENAME_SO = 'gmap-SFC_Pl42-OCN_Pl42.dat'
 
     GMAPFILENAME_OA_CONSERVE = 'gmap-OCN_Pl42-ATM_T42_CONSERVE.dat'
     GMAPFILENAME_AO_CONSERVE = 'gmap-ATM_T42-OCN_Pl42_CONSERVE.dat'
     GMAPFILENAME_SA_CONSERVE = 'gmap-SFC_Pl42-ATM_T42_CONSERVE.dat'
     GMAPFILENAME_AS_CONSERVE = 'gmap-ATM_T42-SFC_Pl42_CONSERVE.dat'
+    GMAPFILENAME_OS_CONSERVE = 'gmap-OCN_Pl42-SFC_Pl42_CONSERVE.dat'
+    GMAPFILENAME_SO_CONSERVE = 'gmap-SFC_Pl42-OCN_Pl42_CONSERVE.dat'
     
     AO_COUPLING_CYCLE_SEC = 7200
+    AS_COUPLING_CYCLE_SEC = 7200
+    SO_COUPLING_CYCLE_SEC = 7200
+
+    SFC_GNX = -1
+    SFC_GNY = -1
     
     ! NAMELIST からの入力
     ! Input from NAMELIST
@@ -276,14 +305,21 @@ contains
     end if
 
     call MessageNotify( 'M', module_name, "AO_COUPLING_CYCLE_SEC=%d [sec]  ", i=(/ AO_COUPLING_CYCLE_SEC /))
+    call MessageNotify( 'M', module_name, "AS_COUPLING_CYCLE_SEC=%d [sec]  ", i=(/ AS_COUPLING_CYCLE_SEC /))
+    call MessageNotify( 'M', module_name, "SO_COUPLING_CYCLE_SEC=%d [sec]  ", i=(/ SO_COUPLING_CYCLE_SEC /))
     call MessageNotify( 'M', module_name, "GMAPFILENAME_OA =%a             ", ca=(/ GMAPFILENAME_OA          /) )
     call MessageNotify( 'M', module_name, "GMAPFILENAME_AO =%a             ", ca=(/ GMAPFILENAME_AO          /) )
     call MessageNotify( 'M', module_name, "GMAPFILENAME_SA =%a             ", ca=(/ GMAPFILENAME_SA          /) )
     call MessageNotify( 'M', module_name, "GMAPFILENAME_AS =%a             ", ca=(/ GMAPFILENAME_AS          /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_SO =%a             ", ca=(/ GMAPFILENAME_SO          /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_OS =%a             ", ca=(/ GMAPFILENAME_OS          /) )
     call MessageNotify( 'M', module_name, "GMAPFILENAME_OA_CONSERVE =%a    ", ca=(/ GMAPFILENAME_OA_CONSERVE /) )
     call MessageNotify( 'M', module_name, "GMAPFILENAME_AO_CONSERVE =%a    ", ca=(/ GMAPFILENAME_AO_CONSERVE /) )
     call MessageNotify( 'M', module_name, "GMAPFILENAME_SA_CONSERVE =%a    ", ca=(/ GMAPFILENAME_SA_CONSERVE /) )
     call MessageNotify( 'M', module_name, "GMAPFILENAME_AS_CONSERVE =%a    ", ca=(/ GMAPFILENAME_AS_CONSERVE /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_SO_CONSERVE =%a    ", ca=(/ GMAPFILENAME_SO_CONSERVE /) )
+    call MessageNotify( 'M', module_name, "GMAPFILENAME_OS_CONSERVE =%a    ", ca=(/ GMAPFILENAME_OS_CONSERVE /) )
+    call MessageNotify( 'M', module_name, "SFC_GX=%d, SFC_GY0=%d", i=(/ SFC_GNX, SFC_GNY /))
         
   end subroutine common_read_config
   

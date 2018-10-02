@@ -27,6 +27,8 @@ module grid_mapping_util_jones99
   !      
   public :: gen_gridmapfile_lonlat2lonlat
   public :: set_mappingTable_interpCoef
+
+  real(DP), parameter :: PI = acos(-1d0)
   
 contains
 
@@ -34,7 +36,8 @@ contains
        & filename,                          & ! (in)
        & x_LonS, y_LatS, x_LonD, y_LatD,    & ! (in)
        & x_LonIntWtS, y_LatIntWtS,          & ! (in)
-       & x_LonIntWtD, y_LatIntWtD           & ! (in)
+       & x_LonIntWtD, y_LatIntWtD,          & ! (in)
+       & accuracy_order                     & ! (in)
        & )
 
     ! 宣言文; Declareration statements
@@ -48,6 +51,7 @@ contains
     real(DP), intent(in) :: y_LatIntWtS(:)
     real(DP), intent(in) :: x_LonIntWtD(:)
     real(DP), intent(in) :: y_LatIntWtD(:)
+    integer, intent(in) :: accuracy_order
 
     ! 局所変数
     ! Local variables
@@ -73,6 +77,7 @@ contains
     !    
     imaxS = size(x_LonS); jmaxS = size(y_LatS)
     imaxD = size(x_LonD); jmaxD = size(y_LatD)    
+
     
     IAS = imaxS+2; ISS = 2; IES = IAS - 1
     JAS = jmaxS+2; JSS = 2; JES = JAS - 1
@@ -84,7 +89,12 @@ contains
     allocate(x_LonD_(IAD), y_LatD_(JAD), u_LonD_(IAD), v_LatD_(JAD))
 
     x_LonS_(ISS:IES) = x_LonS; y_LatS_(JSS:JES) = y_LatS
+    x_LonS_(ISS-1) = x_LonS_(IES) - 2d0*PI
+    x_LonS_(IES+1) = x_LonS_(ISS) + 2d0*PI
+    
     x_LonD_(ISD:IED) = x_LonD; y_LatD_(JSD:JED) = y_LatD
+    x_LonD_(ISD-1) = x_LonD_(IED) - 2d0*PI
+    x_LonD_(IED+1) = x_LonD_(ISD) + 2d0*PI
     
     call calc_edge_coordinate( u_LonS_, v_LatS_,        &
          & x_LonS_, y_LatS_, x_LonIntWtS, y_LatIntWtS,  &
@@ -99,7 +109,8 @@ contains
        & x_LonS_, y_LatS_, x_LonD_, y_LatD_,    & ! (in)
        & u_LonS_, v_LatS_, u_LonD_, v_LatD_,    & ! (in)
        & IAS, ISS, IES, JAS, JSS, JES,          & ! (in)
-       & IAD, ISD, IED, JAD, JSD, JED           & ! (in)
+       & IAD, ISD, IED, JAD, JSD, JED,          & ! (in)
+       & accuracy_order                         & ! (in)
        & )
 
   contains
@@ -147,7 +158,8 @@ contains
        & x_LonS, y_LatS, x_LonD, y_LatD,    & ! (in)
        & u_LonS, v_LatS, u_LonD, v_LatD,    & ! (in)
        & IAS, ISS, IES, JAS, JSS, JES,      & ! (in)
-       & IAD, ISD, IED, JAD, JSD, JED       & ! (in)
+       & IAD, ISD, IED, JAD, JSD, JED,      & ! (in)
+       & accuracy_order                     & ! (in)
        & )
 
     ! モジュール引用; Use statement
@@ -169,7 +181,7 @@ contains
     real(DP), intent(in) :: v_LatS(JAS)
     real(DP), intent(in) :: u_LonD(IAD)
     real(DP), intent(in) :: v_LatD(JAD)
-    
+    integer, intent(in) :: accuracy_order
     ! 局所変数
     ! Local variables
     !            
@@ -224,29 +236,37 @@ contains
           call calc_RemappingWeight( aa_rmapWt, aa_rmapWtDLat,              & ! (out)
                & OverWrapSrcRangeX, OverWrapSrcRangeY, iD, jD               & ! (in)
                & )
-
-
+          
           do m = 1,size(aa_rmapWt,1)
              do n = 1,size(aa_rmapWt,2)
                 iS = OverWrapSrcRangeX(1)+m-1
                 jS = OverWrapSrcRangeY(1)+n-1
 
-                write(deviceID,*) &
-                     & iD -iSD+1, jD -jSD+1, iS -iSS+1, jS -jSS+1, aa_rmapWt(m,n)
-
-                if (jS==jSS) then
-                   jDLat1 = jS;   jDLat2 = jS+1
-                else if (jS==jES) then
-                   jDLat1 = jS-1; jDLat2 = jS
-                else
-                   jDLat1 = jS-1; jDLat2 = jS+1
+                if ( abs(aa_rmapWt(m,n)) > 1d-14 ) then
+                   write(deviceID,*) &
+                        & iD -iSD+1, jD -jSD+1, iS -iSS+1, jS -jSS+1, aa_rmapWt(m,n)
+!!$                   write(*,*) &
+!!$                        & iD -iSD+1, jD -jSD+1, iS -iSS+1, jS -jSS+1, aa_rmapWt(m,n)
                 end if
-                DLat = y_LatS(jDLat2) - y_LatS(jDLat1)
-                
-                write(deviceID,*) &
-                     & iD -iSD+1, jD -jSD+1, iS -iSS+1, jDLat1 -jSS+1, -aa_rmapWtDLat(m,n)/DLat
-                write(deviceID,*) &
-                     & iD -iSD+1, jD -jSD+1, iS -iSS+1, jDLat2 -jSS+1, +aa_rmapWtDLat(m,n)/DLat
+
+                if (accuracy_order > 1) then
+                   if (jS==jSS) then
+                      jDLat1 = jS;   jDLat2 = jS+1
+                   else if (jS==jES) then
+                      jDLat1 = jS-1; jDLat2 = jS
+                   else
+                      jDLat1 = jS-1; jDLat2 = jS+1
+                   end if
+                   DLat = y_LatS(jDLat2) - y_LatS(jDLat1)
+
+                   if ( abs(aa_rmapWtDLat(m,n)) > 1d-14 ) then                   
+                      write(deviceID,*) &
+                           & iD -iSD+1, jD -jSD+1, iS -iSS+1, jDLat1 -jSS+1, -aa_rmapWtDLat(m,n)/DLat
+                      write(deviceID,*) &
+                           & iD -iSD+1, jD -jSD+1, iS -iSS+1, jDLat2 -jSS+1, +aa_rmapWtDLat(m,n)/DLat
+                   end if
+                   
+                end if
                 
              end do
           end do          
@@ -255,7 +275,7 @@ contains
     end do
     
     close(deviceID)
-
+    
   contains
     subroutine calc_RemappingWeight( aa_rmapWt, aa_rmapWtDLat,  & ! (out)
          & SrcRangeX, SrcRangeY, iD, jD                         & ! (in)
@@ -381,6 +401,22 @@ contains
       
       SrcRangeX(1) = -1
       SrcRangeY(2) = -1
+
+      if ( NXS == 1 .and. NXD /= 1 ) then
+         SrcRangeX(:) = (/ ISS, ISS /)
+      else if ( NXS /= 1 .and. NXD == 1 ) then
+         SrcRangeX(:) = (/ ISS, IES /)
+      else
+         do i=ISS, IES
+            if( u_LonS(i-1) <= DistX1 .and. DistX1 <= u_LonS(i) ) then
+               SrcRangeX(1) = i
+            end if
+            if( u_LonS(i-1) <= DistX2 .and. DistX2 <= u_LonS(i) ) then
+               SrcRangeX(2) = i
+               exit
+            end if
+         end do         
+      end if
       
       do j=JSS, JES
          if( v_LatS(j-1) <= DistY1 .and. DistY1 <= v_LatS(j) ) then
@@ -392,16 +428,11 @@ contains
          end if
       end do
 
-      if ( NXD == 1 ) then
-         SrcRangeX(:) = (/ ISS, IES /)
-      else
-         SrcRangeX(:) = (/ ISS, ISS /)
-      end if
 
-      write(*,*) "DistY", DistY1, DistY2, "SrcRange=", SrcRangeY
-      
+!!$      write(*,*) "DistY", DistY1, DistY2, "SrcRange=", SrcRangeY      
       if (SrcRangeY(1)<0.or.SrcRangeY(2)<0) then
          write(*,*) "Exception.."
+         write(*,*) "filename=", trim(filename)
          write(*,*) "v_LatS:", v_LatS(JSS-1:JES)
          stop
       end if

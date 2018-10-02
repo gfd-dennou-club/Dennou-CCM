@@ -30,7 +30,7 @@ AxisDef = DCPAMUtil::AxisNameDef
 puts "CurrentDir=#{CurrentDir} .."
 @dcpamUtil = DCPAMUtil.new(PlanetName, "#{CurrentDir}/#{VarDef::U}.nc")
 
-varNameList = [ "SurfTempOcn", "OLRA", "OSRA", "RadSDWFLXA", "RadSUWFLXA", "RadLDWFLXA", "RadLUWFLXA" ]
+varNameList = [ "SurfTemp", "OLRA", "OSRA", "RadSDWFLXA", "RadSUWFLXA", "RadLDWFLXA", "RadLUWFLXA" ]
 
 gp_SurfTemp, gp_OLR, gp_OSR, gp_RadSDWFlx, gp_RadSUWFlx, gp_RadLDWFlx, gp_RadLUWFlx,  \
  = GPhysUtil.get_GPhysObjs(varNameList)

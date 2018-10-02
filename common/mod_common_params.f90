@@ -37,6 +37,9 @@ module mod_common_params
   character(*), parameter :: COMPNAME_LAND  = 'LAND'
   integer, parameter      :: COMPID_LAND    = 4
 
+  character(*), parameter :: COMPNAME_SFC   = 'SFC'
+  integer, parameter      :: COMPID_SFC     = 5
+  
 
   !* The name of grid with each commponent
   !
@@ -50,12 +53,19 @@ module mod_common_params
   character(*), parameter :: OCN_GRID_2D  = "ocn_grid_2d"
   integer, parameter :: NUM_OCN_GMAPTAG   = 2
 
+  character(*), parameter :: SFC_GRID_2D  = "sfc_grid_2d"
+  integer, parameter :: NUM_SFC_GMAPTAG   = 4
+  
   character(*), parameter :: SICE_GRID   = "sice_grid"
 
   character(*), parameter :: CHM_GRID    = "chm_grid"  
 
   integer, parameter :: GMAPTAG_ATM2D_OCN2D          = 1
   integer, parameter :: GMAPTAG_ATM2D_OCN2D_CONSERVE = 2
+  integer, parameter :: GMAPTAG_ATM2D_SFC2D          = 3
+  integer, parameter :: GMAPTAG_ATM2D_SFC2D_CONSERVE = 4
+  integer, parameter :: GMAPTAG_SFC2D_OCN2D          = 5
+  integer, parameter :: GMAPTAG_SFC2D_OCN2D_CONSERVE = 6
 
   integer, parameter :: ATM_NUM_GRIDTYPE  = 1
   integer, parameter :: OCN_NUM_GRIDTYPE  = 1

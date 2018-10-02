@@ -20,10 +20,13 @@ MODS	 = # mod_$(COMPO).mod
 LIB      = # $(OCNLIB)
 
 TARGETS		= \
-	atm_driver ocn_driver
+	atm_driver ocn_driver \
+	dccm_atm_driver dccm_ocn_driver dccm_sfc_driver
 
 TARGETS_PE_NAME = \
-	$(ATM_PE_NAME) $(OCN_PE_NAME)
+	$(ATM_PE_NAME) $(OCN_PE_NAME)            \
+	dccm_$(ATM_PE_NAME) dccm_$(OCN_PE_NAME)  \
+	dccm_$(SFC_PE_NAME)
 
 # chm_driver
 
@@ -41,6 +44,15 @@ atm_driver: atm_driver.o $(LIBDIR)/$(ATMLIB)
 
 ocn_driver: ocn_driver.o $(LIBDIR)/$(OCNLIB)
 	$(LINK.f90) -o $(OCN_PE_NAME) $^  $(OCN_LDFLAG) 
+
+dccm_atm_driver: dccm_atm_driver.o $(LIBDIR)/$(ATMLIB)
+	$(LINK.f90) -o dccm_$(ATM_PE_NAME) $^  $(ATM_LDFLAG) 
+
+dccm_ocn_driver: dccm_ocn_driver.o $(LIBDIR)/$(OCNLIB)
+	$(LINK.f90) -o dccm_$(OCN_PE_NAME) $^  $(OCN_LDFLAG) 
+
+dccm_sfc_driver: dccm_sfc_driver.o $(LIBDIR)/$(SFCLIB)
+	$(LINK.f90) -o dccm_$(SFC_PE_NAME) $^  $(SFC_LDFLAG) 
 
 
 #chm_driver: chm_driver.o $(LIBDIR)/$(CHMLIB)

@@ -114,7 +114,7 @@ def energy_glmean_tserise_fig(totEn, intEn, potEn, latEn, kinEn, itr=1)
   end
 
   tot_En_mean = totEn.mean("time")
-
+  
   legend_common = {"legend_dx"=>0.024, "legend_vx"=> 0.65, "legend_size"=>0.018}
   GGraph.set_axes("ytitle"=>"normalized global-mean energy", "yunits"=>"1")
   GGraph.line( totEn/tot_En_mean, true, {"titl"=>"time serise of normalized energy", "max"=>normalized_en_max, "min"=>0,
@@ -135,14 +135,23 @@ def energy_glmean_tserise_fig(totEn, intEn, potEn, latEn, kinEn, itr=1)
   rename_pngfile("EngyGlMean_tserise") if FlagOutputIMG     
 end
 
+def taxis_unitconv(gp)
+  taxis = gp.axis("time")
+  if taxis.pos.units.to_s == "day" then
+    taxis_new = Axis.new.set_pos(taxis.pos/UNumeric[365, "day/year"])
+    grid_new = gp.copy.grid.change_axis(gp.dim_index("time"), taxis_new)
+    gp = GPhys.new(grid_new, gp.data)
+  end
+  return gp
+end
 
 #---
 
-totEn = get_gp("TotEngyGlMean.nc", "TotEngy")
-intEn = get_gp("IntEngyGlMean.nc", "IntEngy")
-latEn = get_gp("LatEngyGlMean.nc", "LatEngy")
-potEn = get_gp("PotEngyGlMean.nc", "PotEngy")
-kinEn = get_gp("KinEngyGlMean.nc", "KinEngy")
+totEn = taxis_unitconv( get_gp("TotEngyGlMean.nc", "TotEngy") )
+intEn = taxis_unitconv( get_gp("IntEngyGlMean.nc", "IntEngy") )
+latEn = taxis_unitconv( get_gp("LatEngyGlMean.nc", "LatEngy") )
+potEn = taxis_unitconv( get_gp("PotEngyGlMean.nc", "PotEngy") )
+kinEn = taxis_unitconv( get_gp("KinEngyGlMean.nc", "KinEngy") )
 
 iceline = get_gp("iceline_lat.nc", "iceline_lat")
 gmSfcTemp = get_gp("sfctemp_glmean.nc", "SfcTemp")

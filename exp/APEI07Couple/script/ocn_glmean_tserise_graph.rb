@@ -148,4 +148,4 @@ siceEn = get_gp("SIceEnGlMean-standalone.nc", "SIceEn")
 #----
 
 ptemp_salt_glmean_tserise_fig(ptemp, salt)
-sicethick_siceEn_glmean_tserise_fig(icethick, siceEn)
+#sicethick_siceEn_glmean_tserise_fig(icethick, siceEn)

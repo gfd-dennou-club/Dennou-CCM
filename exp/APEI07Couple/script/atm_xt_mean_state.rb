@@ -44,6 +44,7 @@ EndCombineCyc=cyc_end
 Grav = UNumeric[9.8, "m/s2"]
 
 SfcTempVarName = sfctempvar_name
+SfcAlbedoVarName = sfctempvar_name.sub("Temp", "Albedo")
 
 NProc=Parallel.processor_count
 
@@ -120,7 +121,8 @@ end
 
 bench_result = Benchmark.realtime do
 
-  #=begin
+#=begin
+#=begin
   merge_ncfile("OLRA_rank(\\d\\d\\d\\d\\d\\d).nc", "OLRA", "OLRA", {}, ["lon","time"])
   merge_ncfile("OSRA_rank(\\d\\d\\d\\d\\d\\d).nc", "OSRA", "OSRA", {}, ["lon","time"])
   merge_ncfile("SLRA_rank(\\d\\d\\d\\d\\d\\d).nc", "SLRA", "SLRA", {}, ["lon","time"])
@@ -137,22 +139,31 @@ bench_result = Benchmark.realtime do
   merge_ncfile("Ps_rank(\\d\\d\\d\\d\\d\\d).nc", "Ps", "Ps", {}, ["lon","time"])
   merge_ncfile("#{SfcTempVarName}_rank(\\d\\d\\d\\d\\d\\d).nc", SfcTempVarName, "SfcTemp", {}, ["lon","time"])
 
+  merge_ncfile("#{SfcAlbedoVarName}_rank(\\d\\d\\d\\d\\d\\d).nc", SfcAlbedoVarName, "SfcAlbedo", {}, ["lon","time"])
+#=end
+#=begin
   merge_ncfile("^Temp_rank(\\d\\d\\d\\d\\d\\d).nc", "Temp", "Temp", {}, ["lon","time"])
   merge_ncfile("U_rank(\\d\\d\\d\\d\\d\\d).nc", "U", "U", {}, ["lon","time"])
   merge_ncfile("V_rank(\\d\\d\\d\\d\\d\\d).nc", "V", "V", {}, ["lon","time"])
   merge_ncfile("QH2OVap_rank(\\d\\d\\d\\d\\d\\d).nc", "QH2OVap", "QH2OVap", {}, ["lon","time"])
   merge_ncfile("SigDot_rank(\\d\\d\\d\\d\\d\\d).nc", "SigDot", "SigDot", {}, ["lon","time"])
   merge_ncfile("Diagnos(\\w).nc", "MSF", "MSF", {}, ["time"])
-
-  #=end
+#=end
+  merge_ncfile("Height_rank(\\d\\d\\d\\d\\d\\d).nc", "Height", "Height", {}, ["lon","time"])  
   #merge_ncfile("QH2OVap_rank(\\d\\d\\d\\d\\d\\d).nc", "QH2OVap", "PWV", {}, ["sig", "lon","time"])
-
+#=begin
   if TargetDataList.include?("EngyFlxLat") then
     merge_ncfile("EngyFl(\\w).nc", "dryStatEnFlxLat", "dryStatEnFlxLat", {}, ["time"])
     merge_ncfile("EngyFl(\\w).nc", "moistStatEnFlxLat", "moistStatEnFlxLat", {}, ["time"])
     merge_ncfile("EngyFl(\\w).nc", "latentEnFlxLat", "latentEnFlxLat", {}, ["time"])
   end
+#=end
+#=end
 
+#  merge_ncfile("DTempDtCumulus_rank(\\d\\d\\d\\d\\d\\d).nc", "DTempDtCumulus", "DTempDtCumulus", {}, ["lon","time"])
+#  merge_ncfile("DTempDtLsc_rank(\\d\\d\\d\\d\\d\\d).nc", "DTempDtLsc", "DTempDtLsc", {}, ["lon","time"])
+  merge_ncfile("Diagnos(\\w).nc", "RelHumd", "RelHumd", {}, ["lon","time"])
+  
 end
 puts "computational time: #{bench_result} s"
 

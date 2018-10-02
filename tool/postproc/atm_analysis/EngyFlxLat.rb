@@ -1,3 +1,5 @@
+#!/usr/env ruby
+# coding: utf-8
 
 #-------------------------------------------------------------
 # Copyright (c) 2015-2015 Kawai Yuta. All rights reserved.
@@ -14,11 +16,21 @@ PlanetName = 'Earth'
 #-----------------------------------------------------------------
 
 require "numru/ggraph"
-require File.expand_path(File.dirname(__FILE__) + "/../common/ConstUtil.rb")
+require "optparse"
+
+opt = OptionParser.new
+options = {}
+opt.on("-c", "--const_util  <param>",  "name of module for physical constants"){|v| options[:const_util_name] = v}
+opt.parse(ARGV)
+
+CONST_UTIL_NAME = (options[:const_util_name] == nil) ? "ConstUtil" : options[:const_util_name]
+p "const_util: #{CONST_UTIL_NAME}"
+
+require File.expand_path(File.dirname(__FILE__) + "/../common/#{CONST_UTIL_NAME}.rb")
 require File.expand_path(File.dirname(__FILE__) + "/../common/DCModelIOUtil.rb")
 require File.expand_path(File.dirname(__FILE__) + "/DCPAMUtil.rb")
 
-eval("include ConstUtil::#{PlanetName}")
+eval("include #{CONST_UTIL_NAME}::#{PlanetName}")
 include DCModelIOUtil
 include NumRu
 
@@ -27,6 +39,9 @@ include NumRu
 @dcpamUtil = nil
 VarDef = DCPAMUtil::VarNameDef
 AxisDef = DCPAMUtil::AxisNameDef
+p Atm::CpDry
+p LatentHeatV
+
 
 #-----------------------------------------------------------------
 
@@ -47,7 +62,7 @@ GPhys::IO.each_along_dims_write(
   time = u.axis("time").pos
   puts "time=#{time.val[0]} [#{time.units}] .."
   press = @dcpamUtil.calc_Pressure(ps)
-  rho = @dcpamUtil.calc_Density(press, temp)
+  rho = press/(Atm::GasRDry*temp)
 
   dryStatEn = rho*(Atm::CpDry*temp + Grav*height)
   latentEn = rho*(LatentHeatV*qvap)

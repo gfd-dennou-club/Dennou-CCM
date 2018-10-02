@@ -58,7 +58,7 @@ class DCPAMUtil
     
 #    puts "Initialize an object of DCPAMUtil class.."
   end
-
+  
   def globalIntLonSig(gphys, gp_Ps)
     tmp = (@gp_sigIntWt*gphys).sum(@sigAxisName)*gp_Ps/@const::Grav
     return @const::RPlanet * (PI/180.0*@gp_lat).cos * (@gp_lonIntWt*tmp).sum(@lonAxisName)

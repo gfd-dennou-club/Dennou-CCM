@@ -27,8 +27,8 @@ module interpolation_data_latlon_mod
   !* Dennou-OGCM
   use mod_common_params, only: &
        & ATM => COMPNAME_ATM,  &
-       & OCN => COMPNAME_OCN
-  
+       & OCN => COMPNAME_OCN,  &
+       & SFC => COMPNAME_SFC
 
   
   ! 宣言文; Declareration statements
@@ -40,7 +40,9 @@ module interpolation_data_latlon_mod
   ! Public procedure
   !
   public :: interpolation_data_latlon_Init, interpolation_data_latlon_Final
-  public :: set_operation_index, set_A_to_O_coef, set_O_to_A_coef
+  public :: set_operation_index
+  public :: set_A_to_O_coef, set_O_to_A_coef
+  public :: set_interpolate_coef
   public :: interpolate_data_latlon
   
   ! 非公開手続き
@@ -58,6 +60,7 @@ module interpolation_data_latlon_mod
 
   integer, parameter, private :: AGCM = 1
   integer, parameter, private :: OGCM = 2
+  integer, parameter, private :: SFCM = 3
 
   integer, private :: my_model
 
@@ -212,6 +215,59 @@ subroutine set_O_to_A_coef(mapping_tag, coefS_global)
 
   end if
 end subroutine set_O_to_A_coef
+
+subroutine set_interpolate_coef(send_comp_name, recv_comp_name, coef_owncomp_name, mapping_tag, coefS_global)
+
+  use jcup_grid
+
+  integer, intent(in) :: mapping_tag  
+  real(DP), intent(in), optional :: coefS_global(:)
+  character(*), intent(in) :: send_comp_name
+  character(*), intent(in) :: recv_comp_name
+  character(*), intent(in) :: coef_owncomp_name
+  
+  integer :: my_comm, my_group, my_size, my_rank
+  character(TOKEN) :: my_comp_name
+  integer, pointer :: local_coef_index(:)
+  integer :: num_of_index
+  
+  my_comp_name = jcup_get_component_name(my_model)
+  call jcup_get_mpi_parameter(my_comp_name, my_comm, my_group, my_size, my_rank)
+  
+  coi => operation_index( &
+       & jcup_get_comp_num_from_name(recv_comp_name), jcup_get_comp_num_from_name(send_comp_name), mapping_tag )
+
+  if ( my_comp_name == coef_owncomp_name ) then
+
+     if ( my_comp_name == recv_comp_name ) then
+        allocate( coi%coefS(coi%num_of_operation) )
+        call jcup_set_local_coef( recv_comp_name, send_comp_name, mapping_tag, coefS_global, coi%coefS, OPERATION_COEF )
+     else if( my_comp_name == send_comp_name .and. my_rank == 0) then
+        if(.not. present(coefS_global)) then
+           call jcup_error( "set_interpolate_coef", &
+                & "NO coefS. send="//trim(send_comp_name)//", recv="//trim(recv_comp_name) )
+        end if
+        call jcup_send_coef(send_comp_name, recv_comp_name, coefS_global)
+     end if
+     
+  else 
+
+     if ( my_comp_name == recv_comp_name ) then
+        allocate(coi%coefS(coi%num_of_operation))
+        write(*,*) trim(my_comp_name)//" rank=", my_rank, "nOperation=", coi%num_of_operation, &
+             & size(coi%send_data_index), size(coi%recv_data_index), &
+             & coi%num_of_send_coef, coi%num_of_recv_coef, &
+             & ", mapping_tag=", mapping_tag
+        
+        call get_operation_index(my_comp_name, send_comp_name, mapping_tag, num_of_index, local_coef_index)
+        write(*,*) "call get_operation_index: nIndex=", num_of_index, "nLcCoefIndex=", &
+             & size(local_coef_index)
+     
+        call jcup_recv_coef(my_comp_name, send_comp_name, mapping_tag, coi%coefS, OPERATION_COEF)
+     end if
+  end if 
+
+end subroutine set_interpolate_coef
 
 !=======+=========+=========+=========+=========+=========+=========+=========+
 

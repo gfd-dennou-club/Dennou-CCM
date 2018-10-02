@@ -144,6 +144,15 @@ def extract_iceline(cycle, varname)
     VArray.new(NArray.sfloat(tlen), {"long_name"=> "ice line latitude", "units"=>"degree_north"}, "iceline_lat")
   )
 
+  gp_iceline_nh = GPhys.new(
+    Grid.new(time_axis),
+    VArray.new(NArray.sfloat(tlen), {"long_name"=> "ice line latitude (north hemisphere)", "units"=>"degree_north"}, "iceline_lat_nh")
+  )
+  gp_iceline_sh = GPhys.new(
+    Grid.new(time_axis),
+    VArray.new(NArray.sfloat(tlen), {"long_name"=> "ice line latitude (south hemisphere)", "units"=>"degree_north"}, "iceline_lat_sh")
+  )
+  
   gp_Tg_glmean = GPhys.new(
     Grid.new(time_axis),
     VArray.new(NArray.sfloat(tlen), {"long_name"=> "global mean temperature", "units"=>"degree_north"}, "SfcTemp")
@@ -162,7 +171,7 @@ def extract_iceline(cycle, varname)
         tmp_icelat = ( (gp_Tg_dev.val[j+1,n].abs*lat_axis.pos[j] + gp_Tg_dev.val[j,n].abs*lat_axis.pos[j+1]) / (gp_Tg_dev.val[j,n] - gp_Tg_dev.val[j+1,n]).abs ).abs
 
         if lat_axis.pos.val[j] > 0.0 then
-          if (gp_Tg_dev[j,n] < gp_Tg_dev[j+1,n]) and (icelat_sh == 90.0) then
+          if (gp_Tg_dev[j,n] < gp_Tg_dev[j+1,n]) and (icelat_sh == 90.0 and icelat_nh == 90.0) then
             icelat_sh = 0.0
 #            p "accross eq.."
           else
@@ -181,16 +190,22 @@ def extract_iceline(cycle, varname)
     
     if (icelat_nh == 90.0 and icelat_sh == 90.0) and gp_Tg_dev[latlen/2,n] < 0.0 then
       gp_iceline[n] = 0.0
+      gp_iceline_nh[n] = 0.0
+      gp_iceline_sh[n] = 0.0
     else
+      gp_iceline_nh[n] = icelat_nh
+      gp_iceline_sh[n] = icelat_sh
       gp_iceline[n] = 0.5*(icelat_nh + icelat_sh)      
     end
 
     gp_Tg_glmean[n] = ((gp_Tg_meanlon[true,n]*gp_lat_weight).sum * 0.5).to_f
     p "cyc=#{cycle}: n=#{n} iceline=#{gp_iceline.val[n]},  sfctemp=#{gp_Tg_glmean.val[n]}"
-#    p "nh=", icelat_nh, "sh=", icelat_sh
+    p "nh=", icelat_nh, "sh=", icelat_sh
   end
   
   GPhys::IO.write(ofile, gp_iceline)
+  GPhys::IO.write(ofile, gp_iceline_nh)
+  GPhys::IO.write(ofile, gp_iceline_sh)
   GPhys::IO.write(ofile, gp_Tg_glmean)
   ofile.close
 end
@@ -200,10 +215,14 @@ ret = Parallel.map(cycles, :in_processes => NProc){|i|
   extract_iceline(i, SFCTEMP_VARNAME)
 }
 
-if File.exist?("iceline_lat.nc") then
-  FileUtils::rm_f("iceline_lat.nc")  
-end
-combine_ncfile(BeginCombineCyc, EndCombineCyc, "iceline_lat.nc", "tmp*-iceline_lat.nc", "iceline_lat", ["couple"])
+[""].each{|suffix|
+#["", "_nh", "_sh"].each{|suffix|
+  ncname = "iceline_lat#{suffix}.nc"
+  if File.exist?(ncname) then
+    FileUtils::rm_f(ncname)
+  end
+  combine_ncfile(BeginCombineCyc, EndCombineCyc, "iceline_lat#{suffix}.nc", "tmp*-iceline_lat.nc", "iceline_lat#{suffix}", ["couple"])
+}
 #exec_cmd("gpcat -o iceline_lat.nc -v iceline_lat tmp*-iceline_lat.nc")
 
 if File.exist?("sfctemp_glmean.nc") then

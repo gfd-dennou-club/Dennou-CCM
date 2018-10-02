@@ -20,6 +20,8 @@
 #********************************************************************************************
 
 ${OcnRefSalt:=35}
+${OcnInitPTemp:=280}
+
 ${ADelTimeMin:=20}
 ${coupledRunSkipSCyc:=false}
 ${FlagVerticalFilter:=false}
@@ -27,15 +29,24 @@ ${KMINGSVF:=2}
 ${KMAXGSVF:=31}
 ${HistIntValueDayCPLRun:=146}
 ${HistIntValueDaySTDAloneRun:=1825}
+${RestartIntValueDaySTDAloneRun:=9125}
 ${coupledStartDay:=0}
 ${SIceHDiffCoef:=300}
-
 ${IniSolarConst:=$SolarConst}
 ${EndSolarConst:=$SolarConst}
 ${DelSolarConstPerCyc:=5}
 ${IniCycSVariation:=$StartCycleNum}
-EndCycSVariation=$((IniCycSVariation+(EndSolarConst-IniSolarConst)/DelSolarConstPerCyc))
+EndCycSVariation=`echo "$IniCycSVariation+($EndSolarConst-$IniSolarConst)/($DelSolarConstPerCyc)" | bc`
 ${DSolarConstDt:=0}
+${EXP_NAME:=APEI07EXP}
+
+${LongAbsorpCoefDryAir:=0.0}
+${LongAbsorpCoefQVap:=0.01}
+
+${HDEFoldTimeHour:=3}
+
+${RediGMCoef:=800}
+
 
 #--------------------------------------------------------------------------------------------
 
@@ -58,8 +69,8 @@ function create_dir() {
 
 # Prepare directories to save output data.
 
-cp    ${TOPDIR}/bin/atm_driver ${atm_wdir}
-cp    ${TOPDIR}/bin/ocn_driver ${ocn_wdir}
+cp    ${atm_pe} ${atm_wdir}
+cp    ${ocn_pe} ${ocn_wdir}
 cp    ${ocn_standalone_pedir}/${ocn_standalone_pename} ${ocn_wdir}/ocn_standalone
 cp -r ${ocn_standalone_libdir} ${ocn_wdir}
 
@@ -83,7 +94,7 @@ for ((n=StartCycleNum; n<=nCycle; n++)) ; do
     nowSolarConst=$SolarConst
     if [ $EndCycSVariation -ge $n ]; then
 	echo "hoge"
-	nowSolarConst=$((IniSolarConst + (n - IniCycSVariation)*DelSolarConstPerCyc))
+	nowSolarConst=`echo "scale=3; $IniSolarConst + ($DelSolarConstPerCyc)*($n - $IniCycSVariation)" | bc`
     else
 	DSolarConstDt=0D0
     fi
@@ -112,8 +123,11 @@ for ((n=StartCycleNum; n<=nCycle; n++)) ; do
      s!#timeset_nml_ADelTimeMin#!${ADelTimeMin}.0!g;
      s!#gtool_historyauto_nml_IntValue#!${HistIntValueDayCPLRun}.0!g;
      s!#rad_DennouAGCM_nml_RstInputFile#!${atm_wdir}/cycle$((n-1))-couple/rst_rad.nc!g;
-     s!#rad_DennouAGCM_nml_SolarConst#!${nowSolarConst}.0!g;
+     s!#rad_DennouAGCM_nml_SolarConst#!${nowSolarConst}d0!g;
      s!#rad_DennouAGCM_nml_DSolarConstDt#!${DSolarConstDt}!g;
+     s!#rad_DennouAGCM_nml_LongAbsorpCoefQVap#!${LongAbsorpCoefQVap}!g;
+     s!#rad_DennouAGCM_nml_LongAbsorpCoefDryAir#!${LongAbsorpCoefDryAir}!g;
+     s!#dynamics_hspl_vas83_nml_HDEFoldTimeValue#!${HDEFoldTimeHour}!g;
      s!#dynamics_hspl_vas83_nml_FlagVertFilter#!${FlagVerticalFilter}!g;
      s!#dynamics_hspl_vas83_nml_KMINGSVF#!${KMINGSVF}!g;
      s!#dynamics_hspl_vas83_nml_KMAXGSVF#!${KMAXGSVF}!g;
@@ -129,6 +143,7 @@ EOF
     SIceRestartInFile=""
 
     sedArgs=`cat << EOF
+     s!#DOGCM_nml_EXP_NAME#!${EXP_NAME}!g;
      s!#gtool_historyauto_nml_IntValue#!${HistIntValueDayCPLRun}.0!g;
      s!#gtool_historyauto_nml_OriginValue#!${coupledRunRestartTime}!g;
      s!#gtool_historyauto_nml_TerminusValue#!${coupledRunEndTime}!g;     
@@ -145,7 +160,9 @@ EOF
      s!#BoundaryCondition_nml_ThermBCSurface#!PrescFlux!g;
      s!#BoundaryCondition_nml_SaltBCSurface#!PrescFlux!g;
      s!#Constants_nml_RefSalt#!${OcnRefSalt}d0!g;
+     s!#Constants_nml_OcnInitPTemp#!${OcnInitPTemp}d0!g;
      s!#SeaIce_Admin_Constants_nml_SIceHDiffCoef#!${SIceHDiffCoef}!g;
+     s!#RediGM_nml_DiffCoef#!${RediGMCoef}!g;
      s!#Exp_APECoupleClimate_nml_RunCycle#!${n}!g;
      s!#Exp_APECoupleClimate_nml_RunTypeName#!Coupled!g;
      s!#Exp_APECoupleClimate_nml_OcnInitSalt#!${OcnRefSalt}d0!g;
@@ -211,10 +228,10 @@ EOF
       s!#gtool_historyauto_nml_TerminusValue#!${standaloneTimeIntrvPerCycle}!g;      
       s!#OcnRestartFile_nml_InputFileName#!!g; 
       s!#OcnRestartFile_nml_OutputFileName#!RestartOcnData.nc!g;
-      s!#OcnRestartFile_nml_IntValue#!9125.0!g;
+      s!#OcnRestartFile_nml_IntValue#!${RestartIntValueDaySTDAloneRun}.0!g;
       s!#SIceRestartFile_nml_InputFileName#!!g; 
       s!#SIceRestartFile_nml_OutputFileName#!RestartSIceData.nc!g;
-      s!#SIceRestartFile_nml_IntValue#!9125.0!g;
+      s!#SIceRestartFile_nml_IntValue#!${RestartIntValueDaySTDAloneRun}.0!g;
       s!#TemporalInteg_nml_DelTimeHour#!${standaloneODelTimeHour}!g;
       s!#TemporalInteg_nml_RestartTimeVal#!0.0!g;
       s!#TemporalInteg_nml_InitYear#!2000!g;
@@ -224,6 +241,7 @@ EOF
       s!#BoundaryCondition_nml_SaltBCSurface#!PrescFlux!g;
       s!#Constants_nml_RefSalt#!${OcnRefSalt}d0!g;
       s!#SeaIce_Admin_Constants_nml_SIceHDiffCoef#!${SIceHDiffCoef}!g;
+      s!#RediGM_nml_DiffCoef#!${RediGMCoef}!g;
       s!#Exp_APECoupleClimate_nml_RunCycle#!${n}!g;
       s!#Exp_APECoupleClimate_nml_RunTypeName#!Standalone!g;
       s!#Exp_APECoupleClimate_nml_OcnInitSalt#!${OcnRefSalt}d0!g;

@@ -107,6 +107,22 @@ OCN_LDFLAG += \
 	-lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_core      \
 	-lmkl_intel_lp64 -lmkl_intel_thread
 
+#- SFC -------------
+SFC_INCLUDEFLAG = \
+	-I$(INCDIR) -I$(JCUPINCDIR)                 \
+        -I$(GTOOL5DIR)/include -I$(NETCDFDIR)/include
+
+SFC_LDFLAG      = \
+	$(LIBDIR)/$(JINTPOBJ)                                 \
+	-L$(LIBDIR) -lcommon                                  \
+	-L$(JCUPLIBDIR) -l$(JCUPLIBNAME)		      \
+	-L$(GTOOL5DIR)/lib  -l$(GTOOL5NAME)                   \
+	-L$(NETCDFDIR)/lib -l$(NETCDFFNEME) -l$(NETCDFNEME)   \
+
+SFC_LDFLAG += \
+	-lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_core      \
+	-lmkl_intel_lp64 -lmkl_intel_thread
+
 #- TOOL -------------
 TOOL_INCLUDEFLAG  = \
 	-I$(INCDIR) -I$(JCUPINCDIR)                           \
@@ -138,6 +154,7 @@ TRASH	= *.o *~ *.mod *.lst
 
 ATM_PE_NAME    = atm_driver$(COMPO_PE_SUFFIX)
 OCN_PE_NAME    = ocn_driver$(COMPO_PE_SUFFIX)
+SFC_PE_NAME    = sfc_driver$(COMPO_PE_SUFFIX)
 
 BINDIR   	= $(TOPDIR)/bin
 LIBDIR   	= $(TOPDIR)/lib
@@ -166,6 +183,9 @@ OCNLIB  	= libocn.a
 
 #CHMDIR   	= $(TOPDIR)/chm
 #CHMLIB		= libchm.a
+
+SFCDIR  	= $(TOPDIR)/sfc
+SFCLIB  	= libsfc.a
 
 TOOLDIR  	= $(TOPDIR)/tool
 TOOLLIB  	= libDCCMTool.a
