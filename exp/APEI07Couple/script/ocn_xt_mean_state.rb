@@ -43,6 +43,7 @@ EndCombineCyc=cyc_end
 Grav = UNumeric[9.8, "m/s2"]
 
 SfcTempVarName = sfctempvar_name
+NProc=Parallel.processor_count
 
 p "TargetDir: "+TargetDir
 p "DistDir:"+DistDir
@@ -105,18 +106,21 @@ end
 
 bench_result = Benchmark.realtime do
 
-  #=begin
+#=begin
   merge_ncfile("U.nc", "U", "U", {}, ["lon","time"])
   merge_ncfile("V.nc", "V", "V", {}, ["lon","time"])
   merge_ncfile("OMG.nc", "OMG", "OMG", {}, ["lon","time"])
   merge_ncfile("PTemp.nc", "PTemp", "PTemp", {}, ["lon","time"])
   merge_ncfile("Salt.nc", "Salt", "Salt", {}, ["lon","time"])
   merge_ncfile("MSF.nc", "MSF", "MSF", {}, ["lon","time"])
+  merge_ncfile("diag/MSF_GM.nc", "MSF_GM", "MSF_GM", {}, ["time"])
 #=end
 
   merge_ncfile("SfcHFlxO.nc", "SfcHFlxO", "SfcHFlxO", {}, ["lon", "time"])
+#  merge_ncfile("SfcHFlxO.nc", "SfcHFlxO", "SfcHFlxO_mlon", {}, ["lon"])
 
-  #=begin
+   
+#=begin
   if TargetDataList.include?("EngyFlxLat") then
     merge_ncfile("diag/TotHT.nc", "TotHT", "TotHT", {}, ["time"])
     merge_ncfile("diag/EulerHT.nc", "EulerHT", "EulerHT", {}, ["time"])
@@ -128,8 +132,8 @@ bench_result = Benchmark.realtime do
     merge_ncfile("diag/DensPot.nc", "DensPot", "DensPot", {}, ["lon", "time"])
     merge_ncfile("diag/BVFreq.nc", "BVFreq", "BVFreq", {}, ["lon", "time"])
   end
+#=end
 
 end
 puts "computational time: #{bench_result} s"
 
-#=end

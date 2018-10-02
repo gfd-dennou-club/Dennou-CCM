@@ -76,13 +76,17 @@ def u_temp_fig(u, temp, itr)
   prep_dcl(1,itr,10)
 
   case  ClimateState
+  when CLIMATE_SNOWBALL
+    temp_min = 60; temp_max = 400; temp_int = 10
+    u_min = -100; u_max = 100; u_int = 5
   when CLIMATE_RUNAWAY
     temp_min = 110; temp_max = 450; temp_int = 10
+    u_min = -50; u_max = 80; u_int = 5
   else
     temp_min = 60; temp_max = 400; temp_int = 10
+    u_min = -50; u_max = 80; u_int = 5
   end
   
-  u_min = -120; u_max = 120; u_int = 10
   
   GGraph.tone( temp, true, "titl"=>"U, T", "int"=>temp_int, "min"=>temp_min, "max"=>temp_max )
   GGraph.contour( u, false, "titl"=>"U, T", "int"=>u_int, "min"=>u_min, "max"=>u_max )
@@ -97,17 +101,20 @@ def msf_qvap_fig(msf, qvap, itr)
   prep_dcl(1, itr, 28)
 
   qvap_min = 1e-9; qvap_max = 1.0; qvap_int = 1e-2
-  msf_min = -120; msf_max = 120; msf_int = 10
 
   case ClimateState
   when CLIMATE_SNOWBALL then
     qvap_min = 1e-10; qvap_max = 5e-3
+    msf_min = -100; msf_max = 100; msf_int = 5
   when CLIMATE_WARM then
     qvap_max = 1e-1
+    msf_min = -150; msf_max = 150; msf_int = 10    
   when CLIMATE_RUNAWAY
     qvap_min = 1e-7; qvap_max = 2.0
+    msf_min = -100; msf_max = 100; msf_int = 5
   else
     qvap_max = 1e-1
+    msf_min = -100; msf_max = 100; msf_int = 5
   end
 
   GGraph.tone( qvap, true, "titl"=>"MSF, QVap", "int"=>qvap_int, "log"=>true, "log_cycle"=>3,
@@ -158,7 +165,7 @@ def wind_stress_x_fig(taux, itr=1)
 
   case ClimateState
   when CLIMATE_SNOWBALL then
-    taux_min = -0.01; taux_max = 0.02
+    taux_min = -0.005; taux_max = 0.01
   else
     taux_min = -0.05; taux_max = 0.1
   end
@@ -177,7 +184,7 @@ def wind_stress_y_fig(tauy, itr=1)
 
   case ClimateState
   when CLIMATE_SNOWBALL then
-    tauy_min = -0.01; tauy_max = 0.01
+    tauy_min = -0.005; tauy_max = 0.005
   else
     tauy_min = -0.05; tauy_max = 0.05
   end
@@ -203,7 +210,8 @@ def meridional_heat_flux_fig(dryStatEn, latentEn, moistStatEn, itr=1)
   when CLIMATE_RUNAWAY
     htflx_min = -40.0; htflx_max = 40.0    
   else
-    htflx_min = -6.0; htflx_max = 6.0
+#    htflx_min = -6.0; htflx_max = 6.0
+    htflx_min = -3.0; htflx_max = 3.0
   end
 
   GGraph.set_axes("ytitle"=>"meridional heat flux", "yunits"=>"PW")

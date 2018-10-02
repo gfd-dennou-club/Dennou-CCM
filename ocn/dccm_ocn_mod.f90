@@ -637,15 +637,15 @@ contains
     call regist_jcup_var_so( s2o_Evap_id, s2o_Evap, 2, GMAPTAG_SFC2D_OCN2D_CONSERVE )
     call regist_jcup_var_so( s2o_WindStressX_id, s2o_WindStressX, 3, GMAPTAG_SFC2D_OCN2D_CONSERVE )
     call regist_jcup_var_so( s2o_WindStressY_id, s2o_WindStressY, 3, GMAPTAG_SFC2D_OCN2D_CONSERVE )
-    call regist_jcup_var_so( s2o_DSfcHFlxDTs_id, s2o_DSfcHFlxDTs,4, GMAPTAG_SFC2D_OCN2D_CONSERVE )
+    call regist_jcup_var_so( s2o_DSfcHFlxDTs_id, s2o_DSfcHFlxDTs,4, GMAPTAG_SFC2D_OCN2D )
      
     call regist_jcup_var_si( s2i_SfcHFlx_ns_id, s2i_SfcHFlx_ns, 1, GMAPTAG_SFC2D_OCN2D_CONSERVE )
     call regist_jcup_var_si( s2i_SfcHFlx_sr_id, s2i_SfcHFlx_sr, 1, GMAPTAG_SFC2D_OCN2D_CONSERVE )
-    call regist_jcup_var_si( s2i_DSfcHFlxDTs_id, s2i_DSfcHFlxDTs, 1, GMAPTAG_SFC2D_OCN2D_CONSERVE )
+    call regist_jcup_var_si( s2i_DSfcHFlxDTs_id, s2i_DSfcHFlxDTs, 1, GMAPTAG_SFC2D_OCN2D )
     call regist_jcup_var_si( s2i_Evap_id, s2i_Evap, 2, GMAPTAG_SFC2D_OCN2D_CONSERVE )
-    
+     
     !- Finish defining variables for jup ---------------------
-    
+     
     call jcup_end_var_def()
 
   contains
@@ -821,7 +821,7 @@ contains
 !!$    real(DP) :: xy_Tmp(IAO,JAO)
       
     ! 実行文; Executable statement
-      
+       
     !$omp parallel do private(i,j, SIceCon)
     do j = JSO, JEO
     do i = ISO, IEO
@@ -849,7 +849,7 @@ contains
     call ocn_set_send_2d( field_sice, i2s_SfcTemp_id, xy_SIceSfcTemp(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( field_sice, i2s_SfcAlbedo_id, xy_SIceAlbedo(ISO:IEO,JSO:JEO) )
     call ocn_set_send_2d( field_sice, i2s_SIceCon_id, xya_SIceCon(ISO:IEO,JSO:JEO,SICE_TLN) )
- 
+   
 !!$    call ocn_set_send_2d( o2a_SfcSnow_id, xy_SfcSnow4Atm(ISO:IEO,JSO:JEO) )
 !!$    call ocn_set_send_2d( o2a_SfcEngyFlxMod_id, xy_SfcEngyFlxMod4Atm(ISO:IEO,JSO:JEO) )
     
@@ -973,7 +973,7 @@ contains
     !-------------------------------------------------------------------
           
     if( my_comp%tstep >= 1 ) then
-      
+        
        !$omp parallel do collapse(2)
        do j = JSO, JEO
        do i = ISO, IEO

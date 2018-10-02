@@ -395,7 +395,7 @@ contains
     ! 実行文; Executable statement
     !
 
-
+ 
     !
     call init_field_data( field, num_of_25d=GN25,                      & ! (in)
          & num_of_varp=NUM_ATM_PUTVAR2D, num_of_varg=NUM_ATM_GETVAR2D )  ! (in)
@@ -426,11 +426,12 @@ contains
 
     call jcup_def_varg( field%varg(o2a_SfcTemp_id)%varg_ptr, my_comp%name, 'o2a_SfcTemp', ATM_GRID_2D, 1,     & ! (in)
          & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcTemp, RECV_MODE="SNP",                        & ! (in)
-         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D, EXCHANGE_TAG=1)        ! (in)
+         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D_CONSERVE, EXCHANGE_TAG=1)        ! (in)
 
-    call jcup_def_varg( field%varg(o2a_SfcAlbedo_id)%varg_ptr, my_comp%name, 'o2a_SfcAlbedo', ATM_GRID_2D, 1, & ! (in)
-         & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcAlbedo, RECV_MODE="SNP",                      & ! (in)
-         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D, EXCHANGE_TAG=1)        ! (in)
+    call jcup_def_varg( field%varg(o2a_SfcAlbedo_id)%varg_ptr, my_comp%name, 'o2a_SfcAlbedo', ATM_GRID_2D, 1, &    ! (in)
+         & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcAlbedo, RECV_MODE="SNP",                      &    ! (in)
+!!$         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D, EXCHANGE_TAG=1)        ! (in)
+         & INTERVAL=AO_COUPLING_CYCLE_SEC, TIME_LAG=-1, MAPPING_TAG=GMAPTAG_ATM2D_OCN2D_CONSERVE, EXCHANGE_TAG=1)  ! (in)
 
     call jcup_def_varg(field%varg(o2a_SfcSnow_id)%varg_ptr, my_comp%name, 'o2a_SfcSnow', ATM_GRID_2D, 1,      & ! (in)
          & SEND_MODEL_NAME=ocn_comp%name, SEND_DATA_NAME=o2d_SfcSnow, RECV_MODE="SNP",                        & ! (in)
@@ -738,6 +739,7 @@ contains
 
     call atm_get_write( o2a_SfcTemp_id, o2d_SfcTemp,     & ! (in)
          & xy_SfcTemp )                                    ! (out)
+    xy_SfcTemp = xy_SfcTemp**0.25d0
     
     call atm_get_write( o2a_SfcAlbedo_id, o2d_SfcAlbedo, & ! (in)
          & xy_SfcAlbedo )                                  ! (out)
@@ -752,6 +754,9 @@ contains
     !
     if( mod(CurrentTimeSec, dble(AO_COUPLING_CYCLE_SEC)) == 0d0 ) then
 
+       call output_var( CurrentTimeSec, o2d_SfcTemp, xy_SfcTemp )
+       call output_var( CurrentTimeSec, o2d_SfcAlbedo, xy_SfcAlbedo )
+       
 !!$    if(my_rank>12) then
 !!$       write(*,*) "atm: rank=", my_rank, "SurfTemp=", xy_SurfTemp(0,1:2), "lat=", y_Lat(1:2)/acos(-1d0)*180d0
 !!$    end if
@@ -782,7 +787,7 @@ contains
       field%recv_2d(:,:) = unpack(field%buffer1d, field%mask2d, field%recv_2d)      
       if( mod(CurrentTimeSec, dble(AO_COUPLING_CYCLE_SEC)) == 0d0 ) then
          xy_getdata(:,:) = field%recv_2d
-         call output_var( CurrentTimeSec, vargName, xy_getdata )
+!!$         call output_var( CurrentTimeSec, vargName, xy_getdata )
       end if
     end subroutine atm_get_write
       

@@ -22,10 +22,17 @@
 
 ${coupledRunSkipSCyc:=false}
 ${FlagVerticalFilter:=false}
+${HDDiffOptrOrd:=8}
 ${HDEFoldTimeHour:=3}
 ${KMINGSVF:=2}
 ${KMAXGSVF:=31}
 ${FlagPRCPPC:=true}
+
+${LongAbsorpCoefDryAir:=0.0}
+${LongAbsorpCoefQVap:=0.01d0}
+
+${FlagModAlbedoBasedOnTempSGS:=false}
+${coupledStartDay:=0}
 
 #--------------------------------------------------------------------------------------------
 
@@ -56,7 +63,7 @@ cd $PBS_O_WORKDIR
 
 #- Perform temporal integration of coupled system -------------------------------
 
-coupledRunRestartTime=$(((StartCycleNum-1)*coupledTimeIntrvPerCycle))
+coupledRunRestartTime=$((coupledStartDay+(StartCycleNum-1)*coupledTimeIntrvPerCycle))
 for ((n=StartCycleNum; n<=nCycle; n++)) ; do
 
     ######################################################################
@@ -82,11 +89,15 @@ for ((n=StartCycleNum; n<=nCycle; n++)) ; do
      s!#gtool_historyauto_nml_IntValue#!${HistIntValueDay}.0!g; 
      s!#rad_DennouAGCM_nml_RstInputFile#!${atm_wdir}/cycle$((n-1))-couple/rst_rad.nc!g;
      s!#rad_DennouAGCM_nml_SolarConst#!${SolarConst}.0!g;
+     s!#rad_DennouAGCM_nml_LongAbsorpCoefQVap#!${LongAbsorpCoefQVap}!g;
+     s!#rad_DennouAGCM_nml_LongAbsorpCoefDryAir#!${LongAbsorpCoefDryAir}!g;
+     s!#dynamics_hspl_vas83_nml_HDDiffOptrOrd#!${HDDiffOptrOrd}!g;
      s!#dynamics_hspl_vas83_nml_HDEFoldTimeValue#!${HDEFoldTimeHour}!g;
      s!#dynamics_hspl_vas83_nml_FlagVertFilter#!${FlagVerticalFilter}!g;
      s!#dynamics_hspl_vas83_nml_KMINGSVF#!${KMINGSVF}!g;
      s!#dynamics_hspl_vas83_nml_KMAXGSVF#!${KMAXGSVF}!g;
      s!#cloud_none_nml_FlagPRCPPC#!${FlagPRCPPC}!g;
+     s!#FlagModAlbedoBasedOnTempSGS#!${FlagModAlbedoBasedOnTempSGS}!g;
 EOF
     ` 
     atm_nml=${atmDirPath}/${atm_nml_template##*/}

@@ -72,57 +72,58 @@ def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ova
   p "read NetCDF files (#{ncname}).."
 
   nCyc = EndCombineCyc - BeginCombineCyc + 1
-  nSubCyc = 1
+  nSubCyc = 10
   nBlock = nCyc / nSubCyc
   nBlock += 1 if (nCyc % nSubCyc != 0)
-  
+
+  subcyc_fname = Hash.new
   index_info = Hash.new
-  subfnames = []
   for i in 0..nBlock-1
     beginSubCyc = i*nSubCyc + 1
     endSubCyc = [beginSubCyc + nSubCyc - 1, EndCombineCyc].min
     index_info[i] = { "begin_cyc"=>beginSubCyc, "end_cyc"=>endSubCyc }
-    subfnames.push( "tmp#{i}-#{ofilename}" )
+    subcyc_fname[i] = "#{DistDir}/tmp#{beginSubCyc}-#{endSubCyc}_#{ofilename}"
+#    p index_info[i]
   end
-
-  ncpathList = Hash.new
-  (BeginCombineCyc..EndCombineCyc).each{|i|
-    ncpathList[i] = "#{DistDir}/tmp#{i}_#{ofilename}"
-  }
-  p ncpathList
   
-  ret = Parallel.map(BeginCombineCyc..EndCombineCyc, :in_processes =>NProc ){|i|
-#  (BeginCombineCyc..EndCombineCyc).each{|i|
-    p "#{i}." if i%10 == 0
-    p "#{TargetDir}\/cycle#{i}-couple\/#{ncname}"
-    gphys = GPhys::IO.open(/#{TargetDir}\/cycle#{i}-couple\/#{ncname}/, varname)
-#    gphys = GPhys::IO.open("#{TargetDir}\/cycle#{i}-couple\/#{ncname}", varname)
-#    p gphys
+  ret = Parallel.map(0..nBlock-1, :in_processes =>NProc ){|b|
 
-    gphys = gphys.cut(cutOpt) if cutOpt.length > 0
+    id_start = index_info[b]["begin_cyc"]
+    id_end = index_info[b]["end_cyc"]
 
-    ps_read_flag = false    
-    meanOpt.each{|opt|
-      case opt      
-      when "time"
-      when "sig"
-        gp_sig_weight = GPhys::IO.open("#{TargetDir}/cycle#{i}-couple/U.nc", "sig_weight") 
-        gp_ps = GPhys::IO.open(/#{TargetDir}\/cycle#{i}-couple\/Ps_rank(\d\d\d\d\d\d).nc/, "Ps")
-        gphys = gp_ps/Grav*(gphys*gp_sig_weight).sum("sig")
-      else
-        gphys = gphys.mean(opt)
-      end
+    gphys_list = []
+    tmp_file_list = []
+    
+    p "block=#{b} (cyc=#{id_start}:#{id_end}) #{TargetDir}\/cycle*-couple\/#{ncname}"
+    (id_start..id_end).each{|i|
+      gphys = GPhys::IO.open(/#{TargetDir}\/cycle#{i}-couple\/#{ncname}/, varname)
+
+      gphys = gphys.cut(cutOpt) if cutOpt.length > 0
+
+      ps_read_flag = false    
+      meanOpt.each{|opt|
+        case opt      
+        when "time"
+        when "sig"
+          gp_sig_weight = GPhys::IO.open("#{TargetDir}/cycle#{i}-couple/U.nc", "sig_weight") 
+          gp_ps = GPhys::IO.open(/#{TargetDir}\/cycle#{i}-couple\/Ps_rank(\d\d\d\d\d\d).nc/, "Ps")
+          gphys = gp_ps/Grav*(gphys*gp_sig_weight).sum("sig")
+        else
+          gphys = gphys.mean(opt)
+        end
+      }
+      tlen = gphys.axis("time").length
+      gphys_list.push(gphys[false,1..tlen-1])
     }
 
-    ofile = NetCDF::create(ncpathList[i])
-    tlen = gphys.axis("time").length
-    GPhys::IO.write(ofile, gphys[false,1..tlen-1].copy.rename(ovarname))
+    ofile = NetCDF::create(subcyc_fname[b])    
+    GPhys::IO.write(ofile, GPhys.join(gphys_list), ovarname)
     ofile.close
   }
 
   p "Output.."
   ofile = NetCDF::create("#{DistDir}/#{ofilename}")
-  gphys = GPhys::IO.open(ncpathList.values, ovarname)
+  gphys = GPhys::IO.open(subcyc_fname.values, ovarname)
   gphys = gphys.mean("time") if meanOpt.include?("time")
   
   GPhys::IO.write(ofile, gphys)
@@ -130,7 +131,7 @@ def merge_ncfile(ncname, varname, ovarname, cutOpt={}, meanOpt=[], ofilename=ova
   ofile.close
 
   p "remove tmp files.."
-  FileUtils::rm_f(ncpathList.values)
+  FileUtils::rm_f(subcyc_fname.values)
 end
 
 def combine_ncfile_xmean_open(ncvarname, varname=ncvarname, ovarname=ncvarname, cutOpt={})
@@ -138,7 +139,14 @@ def combine_ncfile_xmean_open(ncvarname, varname=ncvarname, ovarname=ncvarname, 
   merge_ncfile("#{ncvarname}_rank(\\d\\d\\d\\d\\d\\d).nc", varname, ovarname, cutOpt, ["lon"])
 
   p "open #{varname}.nc@#{varname} .."
-  return GPhys::IO.open(ovarname+".nc", ovarname)
+  gp = GPhys::IO.open(ovarname+".nc", ovarname)
+
+  if (EndCombineCyc - BeginCombineCyc + 1 >= 1000) then
+    time = gp.axis("time").pos
+    tlen = time.length
+    gp = GPhys::IO.open_gturl("#{ovarname}.nc@#{ovarname},time=#{time.val[0]}:#{time.val[tlen-1]}:2")
+  end
+  return gp
 end
 
 def sfctemp_xmean_tserise_fig(sfctemp,itr=1)
@@ -201,7 +209,6 @@ def tempUpperLyr_xmean_tserise_fig(temp,itr=1)
   rename_pngfile("TempSig0.3XMean_tserise") if FlagOutputIMG
 end
 
-
 sfctemp = combine_ncfile_xmean_open(SfcTempVarName, SfcTempVarName, "SurfTempXMean")
 sfctemp_xmean_tserise_fig(sfctemp)
 
@@ -213,5 +220,5 @@ tempUpperLyr_xmean_tserise_fig(tempUpperLyr)
 
 ["SurfTemp", "TempSig0.9", "TempSig0.3"].each{|ovarname|
   ncpath = DistDir+"/#{ovarname}XMean.nc"
-  FileUtils::rm_f(ncpath) if FileTest::exist?(ncpath)
+#  FileUtils::rm_f(ncpath) if FileTest::exist?(ncpath)
 }

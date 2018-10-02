@@ -27,7 +27,13 @@ module dcpam_main_mod
   ! 力学過程 (スペクトル法, Arakawa and Suarez (1983))
   ! Dynamical process (Spectral method, Arakawa and Suarez (1983))
   !
-  use dynamics_hspl_vas83, only: DynamicsHsplVAS83, VerticalFilterAdjust, SurfPresChangeWithWtVap
+#define DYN_FAST
+#ifndef DYN_FAST  
+  use dynamics_hspl_vas83, only: &
+#else
+  use dynamics_hspl_vas83_fast, only: &
+#endif
+       & DynamicsHsplVAS83, VerticalFilterAdjust, SurfPresChangeWithWtVap
 
   ! 物理過程のみの計算のための力学過程
   ! A dynamics for calculation with physical processes only
@@ -1048,20 +1054,20 @@ contains
     real(DP) :: avr_QMixFlx, avr_QMixFlx2, avr_Tmp
     real(DP) :: avr_LUW, avr_LDW, avr_SUW, avr_SDW, avr_Sens, avr_Lat
     
-!!$    xy_SurfQVapSatOnLiq  = &
-!!$      & xy_CalcQVapSatOnLiq( xy_SurfTemp, xyr_Press(:,:,0) )
-!!$    xy_SurfQVapSatOnSol  = &
-!!$      & xy_CalcQVapSatOnSol( xy_SurfTemp, xyr_Press(:,:,0) )
-!!$    xy_SurfQVapSat       = &
-!!$      &   ( 1.0_DP - xy_SnowFrac ) * xy_SurfQVapSatOnLiq &
-!!$      & + xy_SnowFrac              * xy_SurfQVapSatOnSol
-!!$    xy_SurfDQVapSatDTempOnLiq = &
-!!$      & xy_CalcDQVapSatDTempOnLiq( xy_SurfTemp, xy_SurfQVapSatOnLiq )
-!!$    xy_SurfDQVapSatDTempOnSol = &
-!!$      & xy_CalcDQVapSatDTempOnSol( xy_SurfTemp, xy_SurfQVapSatOnSol )
-!!$    xy_SurfDQVapSatDTemp = &
-!!$      &   ( 1.0_DP - xy_SnowFrac ) * xy_SurfDQVapSatDTempOnLiq &
-!!$      & + xy_SnowFrac              * xy_SurfDQVapSatDTempOnSol
+    xy_SurfQVapSatOnLiq  = &
+      & xy_CalcQVapSatOnLiq( xy_SurfTemp, xyr_Press(:,:,0) )
+    xy_SurfQVapSatOnSol  = &
+      & xy_CalcQVapSatOnSol( xy_SurfTemp, xyr_Press(:,:,0) )
+    xy_SurfQVapSat       = &
+      &   ( 1.0_DP - xy_SnowFrac ) * xy_SurfQVapSatOnLiq &
+      & + xy_SnowFrac              * xy_SurfQVapSatOnSol
+    xy_SurfDQVapSatDTempOnLiq = &
+      & xy_CalcDQVapSatDTempOnLiq( xy_SurfTemp, xy_SurfQVapSatOnLiq )
+    xy_SurfDQVapSatDTempOnSol = &
+      & xy_CalcDQVapSatDTempOnSol( xy_SurfTemp, xy_SurfQVapSatOnSol )
+    xy_SurfDQVapSatDTemp = &
+      &   ( 1.0_DP - xy_SnowFrac ) * xy_SurfDQVapSatDTempOnLiq &
+      & + xy_SnowFrac              * xy_SurfDQVapSatDTempOnSol
 
     !
     delta_t = DelTime
@@ -1069,28 +1075,28 @@ contains
     
     !$omp parallel 
     !$omp workshare
-!!$    xy_TauXAtm(:,:) = xy_SurfMomFluxX - xy_SurfVelTransCoef*xyz_DUDt(:,:,1)*2d0*delta_t
-!!$    xy_TauYAtm(:,:) = xy_SurfMomFluxY - xy_SurfVelTransCoef*xyz_DVDt(:,:,1)*2d0*delta_t
-!!$
-!!$    xy_SensAtm(:,:) = xyr_HeatFlux(:,:,0) - &
-!!$            CpDry*xyr_Exner(:,:,0)*xy_SurfTempTransCoef &
-!!$          * (xyz_DTempDtVDiff(:,:,1)/xyz_Exner(:,:,1) - xy_DSurfTempDt/xyr_Exner(:,:,0)) &
-!!$          * 2d0*delta_t
-!!$    xy_LatentAtm(:,:) = LatentHeat*( &
-!!$         & xyrf_QMixFlux(:,:,0,IndexH2OVap)  &
-!!$         &   - xy_SurfHumidCoef*xy_SurfQVapTransCoef*( &
-!!$         &     xyzf_DQMixDt(:,:,1,IndexH2OVap) - xy_SurfDQVapSatDTemp*xy_DSurfTempDt &
-!!$         &   )* 2d0*delta_t &
-!!$         & )
+    xy_TauXAtm(:,:) = xy_SurfMomFluxX - xy_SurfVelTransCoef*xyz_DUDt(:,:,1)*2d0*delta_t
+    xy_TauYAtm(:,:) = xy_SurfMomFluxY - xy_SurfVelTransCoef*xyz_DVDt(:,:,1)*2d0*delta_t
+
+    xy_SensAtm(:,:) = xyr_HeatFlux(:,:,0) - &
+            CpDry*xyr_Exner(:,:,0)*xy_SurfTempTransCoef &
+          * (xyz_DTempDtVDiff(:,:,1)/xyz_Exner(:,:,1) - xy_DSurfTempDt/xyr_Exner(:,:,0)) &
+          * 2d0*delta_t
+    xy_LatentAtm(:,:) = LatentHeat*( &
+         & xyrf_QMixFlux(:,:,0,IndexH2OVap)  &
+         &   - xy_SurfHumidCoef*xy_SurfQVapTransCoef*( &
+         &     xyzf_DQMixDt(:,:,1,IndexH2OVap) - xy_SurfDQVapSatDTemp*xy_DSurfTempDt &
+         &   )* 2d0*delta_t &
+         & )
     
     xy_LDWRFlxAtm(:,:) = xyr_RadLDwFlux(:,:,0) + 2d0*delta_t*( &
          &    xy_DSurfTempDt * xyra_DelRadLDwFlux(:,:,0,0)            &
          & +  xyz_DTempDtVDiff(:,:,1) * xyra_DelRadLDwFlux(:,:,0,1)   &
          & )
-!!$    xy_LUWRFlxAtm(:,:) = xyr_RadLUwFlux(:,:,0) + 2d0*delta_t*( &
-!!$         &    xy_DSurfTempDt * xyra_DelRadLUwFlux(:,:,0,0)            &
-!!$         & +  xyz_DTempDtVDiff(:,:,1) * xyra_DelRadLUwFlux(:,:,0,1)   &
-!!$         & )
+    xy_LUWRFlxAtm(:,:) = xyr_RadLUwFlux(:,:,0) + 2d0*delta_t*( &
+         &    xy_DSurfTempDt * xyra_DelRadLUwFlux(:,:,0,0)            &
+         & +  xyz_DTempDtVDiff(:,:,1) * xyra_DelRadLUwFlux(:,:,0,1)   &
+         & )
 
     xy_SDWRFlxAtm(:,:) = xyr_RadSDwFlux(:,:,0)
     xy_SUWRFlxAtm(:,:) = xyr_RadSUwFlux(:,:,0)
@@ -1098,12 +1104,12 @@ contains
     
     !
     xy_SurfAirTemp(:,:) = xyr_Exner(:,:,0)/xyz_Exner(:,:,1)*xyz_TempN(:,:,1)
-!!$    xy_DSurfLatentFlxDTs(:,:) = LatentHeat*xy_SurfHumidCoef*xy_SurfQVapTransCoef*xy_SurfDQVapSatDTemp
-!!$    xy_DSurfHFlxDTs(:,:) = &
-!!$         &   CpDry*xy_SurfTempTransCoef      &
-!!$         & + xy_DSurfLatentFlxDTs            &
-!!$         & + 0d0*xyra_DelRadLUwFlux(:,:,0,0) &
-!!$         & - xyra_DelRadLDwFlux(:,:,0,0)
+    xy_DSurfLatentFlxDTs(:,:) = LatentHeat*xy_SurfHumidCoef*xy_SurfQVapTransCoef*xy_SurfDQVapSatDTemp
+    xy_DSurfHFlxDTs(:,:) = &
+         &   CpDry*xy_SurfTempTransCoef      &
+         & + xy_DSurfLatentFlxDTs            &
+!!$         & + xyra_DelRadLUwFlux(:,:,0,0)     &
+         & - xyra_DelRadLDwFlux(:,:,0,0)
     !$omp end workshare
     !$omp end parallel
 
@@ -3371,7 +3377,12 @@ endif ! end if for skip_flag
     ! 力学過程 (スペクトル法, Arakawa and Suarez (1983))
     ! Dynamical process (Spectral method, Arakawa and Suarez (1983))
     !
-    use dynamics_hspl_vas83, only : DynamicsHSplVAS83Init
+#ifndef DYN_FAST  
+  use dynamics_hspl_vas83, only: &
+#else
+  use dynamics_hspl_vas83_fast, only: &
+#endif
+      & DynamicsHSplVAS83Init
 
     ! 物理過程のみの計算のための力学過程
     ! A dynamics for calculation with physical processes only
@@ -5287,7 +5298,12 @@ endif ! end if for skip_flag
     ! 力学過程 (スペクトル法, Arakawa and Suarez (1983))
     ! Dynamical process (Spectral method, Arakawa and Suarez (1983))
     !
-    use dynamics_hspl_vas83, only : DynamicsHSplVAS83Finalize
+#ifndef DYN_FAST  
+  use dynamics_hspl_vas83, only: &
+#else
+  use dynamics_hspl_vas83_fast, only: &
+#endif
+    & DynamicsHSplVAS83Finalize
 
     !
     ! Dynamical process for TWP-ICE experiment

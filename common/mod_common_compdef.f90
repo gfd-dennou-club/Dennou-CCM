@@ -174,7 +174,7 @@ contains
     
     call broadcast_compdef( CompDef_atm, COMPNAME_ATM )
     call broadcast_compdef( CompDef_ocn, COMPNAME_OCN )
-    call broadcast_compdef( CompDef_sfc, COMPNAME_SFC )
+!!$    call broadcast_compdef( CompDef_sfc, COMPNAME_SFC )
 
 !!$    call broadcast_compdef( sice_comp )
 

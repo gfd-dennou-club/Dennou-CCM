@@ -403,8 +403,8 @@ contains
           xya_DSfcHFlxDTs(i,j,n) = &
                & + 4d0*StB*xya_SfcTemp(i,j,n)**3         &
                & + CpDry*xya_SfcTempTransCoef(i,j,n)     &
-                  & + a_LatentHeatLocal(n)*xya_SfcHumdCoef(i,j,n)*xya_SfcQVapTransCoef(i,j,n)         &
-                  &     *( a_LatentHeatLocal(n)*xya_SfcQVapSat(i,j,n)/(GasRWet*xya_SfcTemp(i,j,n)**2) )   ! DQsta/DTs
+               & + a_LatentHeatLocal(n)*xya_SfcHumdCoef(i,j,n)*xya_SfcQVapTransCoef(i,j,n)         &
+               &     *( a_LatentHeatLocal(n)*xya_SfcQVapSat(i,j,n)/(GasRWet*xya_SfcTemp(i,j,n)**2) )   ! DQsta/DTs
        else
           xya_SfcHFlx_ns(i,j,n)  = 0d0
           xya_SfcHFlx_sr(i,j,n)  = 0d0
@@ -426,6 +426,14 @@ contains
 !!$    write(*,*) "WindStressX*:", xya_WindStressX(IS,JS:JE,3)
 !!$    write(*,*) "SenHFlx*:", xya_SenHFlx(IS,JS:JE,3)
 !!$    write(*,*) "DelUImpCPL:", xya_DelVarImplCPL(IS,JS:JE,1)
+!!$    write(*,*) "TsO:", xya_SfcTemp(IS,JS:JE,1)
+!!$    write(*,*) "T1:", xy_SfcAirTemp(IS,JS:JE)
+!!$    write(*,*) "LD:", sum(xy_LDWRFlx(IS:IE,JS:JE),1)/64d0
+!!$    write(*,*) "Lat:", sum(xya_LatHFlx(IS:IE,JS:JE,1),1)/64d0
+!!$    write(*,*) "Sen:", sum(xya_SenHFlx(IS:IE,JS:JE,1),1)/64d0
+!!$    write(*,*) "LU:", sum(xya_LUWRFlx(IS:IE,JS:JE,1),1)/64d0
+!!$    write(*,*) "SD:", sum(xy_SDWRFlx(IS:IE,JS:JE),1)/64d0
+!!$    write(*,*) "AO:", sum(xya_SfcHFlx_ns(IS:IE,JS:JE,1)+xya_SfcHFlx_sr(IS:IE,JS:JE,1),1)/64d0
 !!$    stop
     
   end subroutine DSFCM_Util_SfcBulkFlux_Get

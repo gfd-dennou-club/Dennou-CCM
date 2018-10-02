@@ -675,7 +675,7 @@ contains
        call MessageNotify( 'M', module_name, "Set the interpolation coefficients (SFC -> OCN) ..")    
 
        call set_interpolate_coef( my_comp%name, ocn_comp%name, &
-            & my_comp%name, GMAPTAG_SFC2D_OCN2D, coefS_os_global )
+            & my_comp%name, GMAPTAG_SFC2D_OCN2D, coefS_so_global )
     else
        call set_interpolate_coef( my_comp%name, ocn_comp%name, &
             & my_comp%name, GMAPTAG_SFC2D_OCN2D )

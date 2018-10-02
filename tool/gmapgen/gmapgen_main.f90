@@ -49,12 +49,18 @@ program gmapgen_main
   real(DP), save, allocatable :: x_IntWtLonS(:)
   real(DP), save, allocatable :: y_IntWtLatS(:)
   
-  character(STRING) :: gmapfile_AO_NAME  
+  character(STRING) :: gmapfile_AO_NAME
+  integer :: interp_order_AO
   character(STRING) :: gmapfile_OA_NAME
+  integer :: interp_order_OA
   character(STRING) :: gmapfile_AS_NAME  
+  integer :: interp_order_AS
   character(STRING) :: gmapfile_SA_NAME
-  character(STRING) :: gmapfile_OS_NAME  
+  integer :: interp_order_SA
+  character(STRING) :: gmapfile_OS_NAME
+  integer :: interp_order_OS  
   character(STRING) :: gmapfile_SO_NAME
+  integer :: interp_order_SO
   
   character(*), parameter :: PROGRAM_NAME = "gmapgen_main"
 
@@ -113,27 +119,33 @@ program gmapgen_main
   else
      call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_AO_NAME,  &
           & x_LonA, y_LatA, x_LonO, y_LatO,                     &
-          & x_IntWtLonA, y_IntWtLatA, x_IntWtLonO, y_IntWtLatO, 2 )
+          & x_IntWtLonA, y_IntWtLatA, x_IntWtLonO, y_IntWtLatO, &
+          & interp_order_AO )
   
      call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_OA_NAME,  &
           & x_LonO, y_LatO, x_LonA, y_LatA,                     &
-          & x_IntWtLonO, y_IntWtLatO, x_IntWtLonA, y_IntWtLatA, 2 )
+          & x_IntWtLonO, y_IntWtLatO, x_IntWtLonA, y_IntWtLatA, &
+          & interp_order_OA )
 
-     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_AS_NAME, &
-          & x_LonA, y_LatA, x_LonS, y_LatS,                    &
-          & x_IntWtLonA, y_IntWtLatA, x_IntWtLonS, y_IntWtLatS, 2 )
+     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_AS_NAME,  &
+          & x_LonA, y_LatA, x_LonS, y_LatS,                     &
+          & x_IntWtLonA, y_IntWtLatA, x_IntWtLonS, y_IntWtLatS, &
+          & interp_order_AS )
      
-     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_SA_NAME, &
-          & x_LonS, y_LatS, x_LonA, y_LatA,                    &
-          & x_IntWtLonS, y_IntWtLatS, x_IntWtLonA, y_IntWtLatA, 1 )
+     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_SA_NAME,  &
+          & x_LonS, y_LatS, x_LonA, y_LatA,                     &
+          & x_IntWtLonS, y_IntWtLatS, x_IntWtLonA, y_IntWtLatA, &
+          & interp_order_SA )
 
-     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_OS_NAME, &
-          & x_LonO, y_LatO, x_LonS, y_LatS,                    &
-          & x_IntWtLonO, y_IntWtLatO, x_IntWtLonS, y_IntWtLatS, 1 )
+     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_OS_NAME,  &
+          & x_LonO, y_LatO, x_LonS, y_LatS,                     &
+          & x_IntWtLonO, y_IntWtLatO, x_IntWtLonS, y_IntWtLatS, &
+          & interp_order_OS )
      
-     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_SO_NAME, &
-          & x_LonS, y_LatS, x_LonO, y_LatO,                    &
-          & x_IntWtLonS, y_IntWtLatS, x_IntWtLonO, y_IntWtLatO, 1 )     
+     call gen_gridmapfile_lonlat2lonlat_j99( gmapfile_SO_NAME,  &
+          & x_LonS, y_LatS, x_LonO, y_LatO,                     &
+          & x_IntWtLonS, y_IntWtLatS, x_IntWtLonO, y_IntWtLatO, &
+          & interp_order_SO )     
   end if
         
   ! Output some information about grid mapping table
@@ -163,11 +175,17 @@ contains
 
     NAMELIST /PARAM_GMAPGEN/     &
          & gmapfile_AO_NAME,     &
+         & interp_order_AO,      &
          & gmapfile_OA_NAME,     &
+         & interp_order_OA,      &
          & gmapfile_SA_NAME,     &
+         & interp_order_SA,      &
          & gmapfile_AS_NAME,     &
+         & interp_order_AS,      &         
          & gmapfile_SO_NAME,     &
+         & interp_order_SO,      &         
          & gmapfile_OS_NAME,     &
+         & interp_order_OS,      &         
          & ConservativeFlag
 
 
@@ -192,6 +210,14 @@ contains
     NMO = 21
 
     ConservativeFlag = .false.
+
+    interp_order_AO = 2
+    interp_order_OA = 2
+
+    interp_order_AS = 2
+    interp_order_SA = 1
+    interp_order_OS = 1
+    interp_order_SO = 1
     
     ! NAMELIST からの入力
     ! Input from NAMELIST
@@ -211,7 +237,7 @@ contains
             & nml = PARAM_GMAPGEN,   &  ! (out)
             & iostat = ierr )           ! (out)              
     end if
-
+    
     call MessageNotify( 'M', PROGRAM_NAME, "ATM: (IM, JM, KM)=(%d,%d,%d)", i=(/ IMA, JMA, KMA /) )
     call MessageNotify( 'M', PROGRAM_NAME, "OCN: (IM, JM, KM)=(%d,%d,%d)", i=(/ IMO, JMO, KMO /) )
     call MessageNotify( 'M', PROGRAM_NAME, "gmapfile_OA      =%a        ", ca=(/ gmapfile_OA_NAME /) )
@@ -221,6 +247,9 @@ contains
     call MessageNotify( 'M', PROGRAM_NAME, "gmapfile_OS      =%a        ", ca=(/ gmapfile_OS_NAME /) )
     call MessageNotify( 'M', PROGRAM_NAME, "gmapfile_SO      =%a        ", ca=(/ gmapfile_SO_NAME /) )
     call MessageNotify( 'M', PROGRAM_NAME, "conservativeFlag =%b        ", L=(/ ConservativeFlag /) )
+    call MessageNotify( 'M', PROGRAM_NAME, "interp_order: (AO,OA,AS,SA,OS,SO)=(%d,%d,%d,%d,%d,%d)", &
+         & i=(/ interp_order_AO, interp_order_OA,                                                   &
+         & interp_order_AS, interp_order_SA, interp_order_OS, interp_order_SO /) )
     
   end subroutine read_config
   
