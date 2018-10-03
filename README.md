@@ -1,15 +1,16 @@
-Dennou-CCM (GFD-Dennou Club Coupled climate simulation Model)
+DCPCM (GFD-Dennou Club Planetary Climate Model)
 
 ===========
 
 Target
 -----------------------------------------------------------------------------------------
+DCPCM project designs and develops a coupled atmosphere-ocean-sea ice model  in order to explore climates on exoplanets.
 
 
 Main developers
 -----------------------------------------------------------------------------------------
 
-  - Yuta Kawai (Kobe university and RIKEN AICS) and the collaborators in GFD-Dennou Club
+  - Yuta Kawai (Kobe university and RIKEN R-CCS) and the collaborators in GFD-Dennou Club
 
 Some informations
 -----------------------------------------------------------------------------------------
@@ -28,15 +29,12 @@ Some links associated with this project
   - https://www.gfd-dennou.org
 - DCPAM: Dennou-Club Planetary Atmospheric Model
   - https://www.gfd-dennou.org/arch/dcpam/index.htm.en
-- Dennou-OGCM: Dennou-Club Ocean General Model
+- DCPOM: Dennou-Club Planetary Ocean Model
   - https://github.com/gfd-dennou-club/Dennou-OGCM
-- DCPCM: Dennou Club Planetary Climate simulation Model
-  - https://github.com/ywkawai/DCPCM
-
 
 Acknowledgments
 -----------------------------------------------------------------------------------------
 
-- Y, Kawai is receiving partial support from the Junior Research Associate (JRA) program on RIKEN. 
+- Y, Kawai is receiving partial support from the Junior Research Associate (JRA) program on RIKEN (FY2015-FY2017). 
 
 
