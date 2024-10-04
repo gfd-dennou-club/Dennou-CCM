@@ -41,7 +41,7 @@ NETCDF_INCLUDE ?= -I$(NETCDFDIR)/include
 NETCDF_LIBS    ?= -L$(NETCDFDIR)/lib -L$(HDF5)/lib64 -lnetcdff -lnetcdf -lhdf5_hl -lhdf5 -lm -lz
 
 ###### Lapack
-LAPACK_LIBS    ?= -mkl=sequential
+LAPACK_LIBS    ?= -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_core -lmkl_intel_lp64 -lmkl_intel_thread
 
 ##### for frontend
 INSTALL = install
