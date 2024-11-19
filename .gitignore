@@ -19,6 +19,7 @@ configure
 #
 *.o
 *.mod
+*.lst
 
 # Executable files
 tool/gmapgen
@@ -37,3 +38,5 @@ lib/*
 *.aux
 *.log
 
+# data in experiment directories
+exp/APEI07Couple/*/S*/*
