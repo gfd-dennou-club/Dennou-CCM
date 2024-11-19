@@ -184,21 +184,21 @@ EOF
 
     #
     if [ $n -eq $StartCycleNum ] && $coupledRunSkipSCyc ; then
-	echo "skip coupled run .."
+    	echo "skip coupled run .."
     else
         echo "** Execute Dennou-CCM ******************************"
 
-	cp    ${DCCMConfPath} ${atm_wdir}/../DCCM.conf
-	
-    cd ${atm_wdir}/../
-    ${MPIRUN} -stdout-proc ./output.%j/%/1000r/stdout -stderr-proc ./output.%j/%/1000r/stderr \
-        -n ${atm_PE_NUM} \
-        -x OMP_NUM_THREADS=${atm_THREADS_NUM} \
-    	${atm_pe} -N=${atm_nml} :  \
-        -n ${ocn_PE_NUM} \
-        -x OMP_NUM_THREADS=${ocn_THREADS_NUM} \
-        -x LD_LIBRARY_PATH=${ocn_wdir}/lib:${LD_LIBRARY_PATH}     \
-        ${ocn_pe} --N=${ocn_nml}
+        cp    ${DCCMConfPath} ${atm_wdir}/../DCCM.conf
+        
+        cd ${atm_wdir}/../
+        ${MPIRUN} -stdout-proc ./output.%j/%/1000r/stdout -stderr-proc ./output.%j/%/1000r/stderr \
+            -n ${atm_PE_NUM} \
+            -x OMP_NUM_THREADS=${atm_THREADS_NUM} \
+            ${atm_pe} -N=${atm_nml} :  \
+            -n ${ocn_PE_NUM} \
+            -x OMP_NUM_THREADS=${ocn_THREADS_NUM} \
+            -x LD_LIBRARY_PATH=${ocn_wdir}/lib:${LD_LIBRARY_PATH}     \
+            ${ocn_pe} --N=${ocn_nml}
 
     # ${MPIRUN}                                                   \
 	# -wdir ${atmDirPath} -env OMP_NUM_THREADS ${atm_THREADS_NUM} \
@@ -282,23 +282,22 @@ EOF
         ${ocn_standalone_pe} --N=${ocn_nml}
     
     if [ $? -ne 0 ]; then
-	echo "Exit stauts is 0.  Fail to run Dennou-OGCM(stand-alone mode). Exit.."; exit
+    	echo "Exit stauts is 0.  Fail to run Dennou-OGCM(stand-alone mode). Exit.."; exit
     fi
 
     coupledRunRestartTime=${coupledRunEndTime}
     
-    if [ $n -ne $nCycle ]
-    then
-	echo "create init data file for coupled AOGCM run.."
-	standaloneTimeIntrvPerCycleSec=$((standaloneTimeIntrvPerCycle*86400))
-	ocnDirPath_next="${ocn_wdir}/cycle$((n+1))-couple"
-#	mpiexec.hydra \
-#        -env LD_LIBRARY_PATH ${ocn_wdir}/lib \
-#	-n 1  \
-#	${RUBY} ${CREATE_INITDATA4OGCM_CMD} ${ocnDirPath_standalone} -1 ${ocnDirPath_next}  ${coupledRunRestartTimeSec}
+    if [ $n -ne $nCycle ]; then
+        echo "create init data file for coupled AOGCM run.."
+        standaloneTimeIntrvPerCycleSec=$((standaloneTimeIntrvPerCycle*86400))
+        ocnDirPath_next="${ocn_wdir}/cycle$((n+1))-couple"
+    #	mpiexec.hydra \
+    #        -env LD_LIBRARY_PATH ${ocn_wdir}/lib \
+    #	-n 1  \
+    #	${RUBY} ${CREATE_INITDATA4OGCM_CMD} ${ocnDirPath_standalone} -1 ${ocnDirPath_next}  ${coupledRunRestartTimeSec}
 
-#	echo "copy data files of surface fluxes for coupled AOGCM run.."
-#	cp ${ocnDirPath_standalone}/SfcBC/*.nc ${ocnDirPath_next}/SfcBC/
+    #	echo "copy data files of surface fluxes for coupled AOGCM run.."
+    #	cp ${ocnDirPath_standalone}/SfcBC/*.nc ${ocnDirPath_next}/SfcBC/
 
     fi
 
