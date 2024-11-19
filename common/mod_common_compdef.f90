@@ -147,7 +147,7 @@ contains
 
     call MessageNotify( 'M', module_name, &
          & "  NAME=%a, id=%d, MODELNAME=%a", &
-         & i=(/ my_comp%id /), ca=(/trim(my_comp%name), trim(my_comp%MODELNAME)/) )
+         & i=(/ my_comp%id /), ca=(/ my_comp%name, my_comp%MODELNAME /) )
 
     call MessageNotify( 'M', module_name, &
          & "  MPI comm=%d, group=%d, size=%d,  rank=%d", &
@@ -300,8 +300,14 @@ contains
        rewind( unit_nml )
        read( unit_nml, &                  ! (in)
             & nml = PARAM_DCCM_COMMON, &  ! (out)
-            & iostat = ierr )             ! (out)       
-
+            & iostat = ierr )             ! (out)      
+            
+       if( ierr < 0 ) then !--- missing
+          call MessageNotify( 'M', module_name, 'Not found namelist. Default used.' )
+       elseif( ierr > 0 ) then !--- fatal error
+          call MessageNotify( 'E', module_name, 'Not appropriate names in namelist  Check!')
+       endif
+     !   write(*,nml=PARAM_DCCM_COMMON)
     end if
 
     call MessageNotify( 'M', module_name, "AO_COUPLING_CYCLE_SEC=%d [sec]  ", i=(/ AO_COUPLING_CYCLE_SEC /))
