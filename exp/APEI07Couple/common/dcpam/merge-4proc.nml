@@ -1,0 +1,50 @@
+&proc nprocs = 4 /
+! &item  varname = 'DPiDt'     ,  inncfn = '../DPiDt.nc'      /
+!&item  varname = 'Height'      ,  inncfn = './Height.nc'       /
+!&item  varname = 'Evap'      ,  inncfn = './Evap.nc'       /
+!&item  varname = 'EvapU'      ,  inncfn = './EvapU.nc'       /
+!&item  varname = 'O3'        ,  inncfn = './O3.nc'         /
+!&item  varname = 'OLR'       ,  inncfn = './OLR.nc'        /
+!&item  varname = 'OSR'       ,  inncfn = './OSR.nc'        /
+!&item  varname = 'OLRA'       ,  inncfn = './OLRA.nc'        /
+!&item  varname = 'OSRA'       ,  inncfn = './OSRA.nc'        /
+!&item  varname = 'Ps'        ,  inncfn = './Ps.nc'         /
+!&item  varname = 'QH2OVap'      ,  inncfn = './QH2OVap.nc'       /
+!&item  varname = 'QH2OSol'      ,  inncfn = './QH2OSol.nc'       /
+!&item  varname = 'Rain'      ,  inncfn = './Rain.nc'       /
+!&item  varname = 'Snow'      ,  inncfn = './Snow.nc'       /
+!&item  varname = 'SLR'       ,  inncfn = './SLR.nc'        /
+!&item  varname = 'SSR'       ,  inncfn = './SSR.nc'        /
+!&item  varname = 'SLRA'       ,  inncfn = './SLRA.nc'        /
+!&item  varname = 'SSRA'       ,  inncfn = './SSRA.nc'        /
+!&item  varname = 'SeaIceConc',  inncfn = './SeaIceConc.nc' /
+!&item  varname = 'Sens'      ,  inncfn = './Sens.nc'       /
+!&item  varname = 'SensA'      ,  inncfn = './SensA.nc'       /
+!&item  varname = 'SigDot'    ,  inncfn = './SigDot.nc'     /
+!&item  varname = 'SoilMoist' ,  inncfn = './SoilMoist.nc'  /
+!&item  varname = 'SoilTemp'  ,  inncfn = './SoilTemp.nc'   /
+!&item  varname = 'SurfAlbedo',  inncfn = './SurfAlbedo.nc' /
+!&item  varname = 'SurfSnow'  ,  inncfn = './SurfSnow.nc'   /
+!&item  varname = 'SurfTemp'  ,  inncfn = './SurfTemp.nc'   /
+!&item  varname = 'Temp'      ,  inncfn = './Temp.nc'       /&
+!&item  varname = 'PotTemp'      ,  inncfn = './PotTemp.nc'       /
+&item  varname = 'U'         ,  inncfn = './U.nc'          /
+!&item  varname = 'V'         ,  inncfn = './V.nc'          /
+!&item  varname = 'PRCP'       ,  inncfn = './PRCP.nc'        /
+!&item  varname = 'TauX'       ,  inncfn = './TauX.nc'        /
+!&item  varname = 'TauY'       ,  inncfn = './TauY.nc'        /
+!&item  varname = 'QH2OLiq'       ,  inncfn = './QH2OLiq.nc'        /
+!&item  varname = 'CloudCover'       ,  inncfn = './CloudCover.nc'        /
+!&item  varname = 'CloudCoverforRad'       ,  inncfn = './CloudCoverforRad.nc'        /
+!&item  varname = 'RadLDWFLXA'       ,  inncfn = './RadLDWFLXA.nc'        /
+!&item  varname = 'RadLUWFLXA'       ,  inncfn = './RadLUWFLXA.nc'        /
+!&item  varname = 'RadSDWFLXA'       ,  inncfn = './RadSDWFLXA.nc'        /
+!&item  varname = 'RadSUWFLXA'       ,  inncfn = './RadSUWFLXA.nc'        /
+!&item  varname = 'DTempDtCumulus'   ,  inncfn = './DTempDtCumulus.nc'      /
+!&item  varname = 'DVapDtCumulus'   ,  inncfn = './DVapDtCumulus.nc'      /
+!&item  varname = 'DTempDtLsc'   ,  inncfn = './DTempDtLsc.nc'      /
+!&item  varname = 'DQVapDtLsc'   ,  inncfn = './DQVapDtLsc.nc'      /
+!&item  varname = 'SurfH2OVapFluxU'   ,  inncfn = './SurfH2OVapFluxU.nc'      /
+
+
+
