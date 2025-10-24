@@ -68,7 +68,11 @@ function create_dir() {
 
 # Prepare directories to save output data.
 
+create_dir "${atm_wdir}"
 cp    ${atm_pe} ${atm_wdir}
+cp  ${atm_init_data_pe} ${atm_wdir}
+cp  ${atm_init_data_sfc_pe} ${atm_wdir}
+
 create_dir "${ocn_wdir}"
 cp    ${ocn_pe} ${ocn_wdir}
 cp    ${ocn_standalone_pedir}/${ocn_standalone_pename} ${ocn_wdir}/ocn_standalone
